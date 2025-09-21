@@ -89,41 +89,8 @@ const transformAnswer = (answer: any): CommunityAnswer => ({
 // --- API Functions ---
 
 export const fetchUserProfile = async (): Promise<UserProfile> => {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!isSupabaseConfigured || !user) {
-        return mockUser; // Fallback for unauthenticated or local mode
-    }
-    
-    try {
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-        if (profileError || !profile) {
-            console.warn('Supabase: Could not fetch user profile, falling back to a default.', profileError?.message);
-            return {
-                id: user.id,
-                name: user.email || "مستخدم جديد",
-                avatarUrl: mockUser.avatarUrl,
-                points: 0,
-                streak: 0,
-                badges: [],
-            };
-        }
-
-        const { data: badges, error: badgesError } = await supabase.from('badges').select('*').eq('profile_id', profile.id);
-        if (badgesError) {
-            console.error("Error fetching badges: ", badgesError);
-        }
-
-        return transformProfile(profile, badges || []);
-    } catch (err) {
-        console.error('API Error fetching user profile:', err);
-        return mockUser; // Final fallback
-    }
+    // Authentication has been removed, always return the mock user.
+    return Promise.resolve(mockUser);
 };
 
 export const fetchSubjects = async (): Promise<Subject[]> => {
@@ -180,7 +147,6 @@ export const fetchExamQuestions = async (): Promise<Exercise[]> => {
 
 export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
     if (!isSupabaseConfigured) return mockLeaderboard;
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
 
     try {
         const { data, error } = await supabase
@@ -194,7 +160,7 @@ export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
         if (data && data.length > 0) {
             return data.map((user, index) => ({
                 id: user.id,
-                name: user.id === currentUser?.id ? user.name + " (أنت)" : user.name,
+                name: user.id === mockUser.id ? `${user.name} (أنت)` : user.name,
                 avatarUrl: user.avatar_url ?? 'https://i.imgur.com/E5J0f7L.jpeg',
                 score: user.points ?? 0,
                 rank: index + 1,
@@ -245,7 +211,8 @@ export const fetchCommunityPosts = async (): Promise<CommunityPost[]> => {
 };
 
 export const addCommunityPost = async (question: string, subject: string): Promise<CommunityPost> => {
-    const userProfile = await fetchUserProfile(); // Fetch current user's profile
+    // Authentication removed, using mock user for posting.
+    const userProfile = mockUser;
     
     if (!isSupabaseConfigured) {
         const newPost = { id: new Date().toISOString(), question, subject, author: userProfile.name, avatarUrl: userProfile.avatarUrl, timestamp: 'الآن', answers: [] };
@@ -269,7 +236,8 @@ export const addCommunityPost = async (question: string, subject: string): Promi
 };
 
 export const addCommunityAnswer = async (postId: string, answerText: string): Promise<CommunityAnswer> => {
-    const userProfile = await fetchUserProfile(); // Fetch current user's profile
+    // Authentication removed, using mock user for answering.
+    const userProfile = mockUser;
 
     if (!isSupabaseConfigured) {
         const newAnswer = { id: new Date().toISOString(), text: answerText, author: userProfile.name, avatarUrl: userProfile.avatarUrl, timestamp: 'الآن' };

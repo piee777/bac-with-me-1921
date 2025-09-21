@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Badge } from '../types';
 import { fetchUserProfile } from '../services/api';
-import { supabase } from '../services/supabaseClient';
 import ProgressBar from '../components/ProgressBar';
 
 const BadgeCard: React.FC<{badge: Badge}> = ({ badge }) => (
@@ -36,13 +35,6 @@ const ProfileScreen: React.FC = () => {
         loadUser();
     }, []);
     
-    const handleLogout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            console.error('Error logging out:', error);
-        }
-    };
-
     // Mock performance data
     const performance = {
         strengths: ['الدوال العددية', 'الميكانيك'],
@@ -129,15 +121,6 @@ const ProfileScreen: React.FC = () => {
                     {user.badges.map(badge => <BadgeCard key={badge.id} badge={badge} />)}
                 </div>
             </section>
-
-             <div className="mt-8 text-center">
-                <button
-                    onClick={handleLogout}
-                    className="bg-red-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-red-600 transition-colors"
-                >
-                    تسجيل الخروج
-                </button>
-            </div>
         </div>
     );
 };

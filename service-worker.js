@@ -22,7 +22,6 @@ const urlsToCache = [
   '/components/icons/SunIcon.tsx',
   '/components/icons/MoonIcon.tsx',
   // Screens
-  '/screens/AuthScreen.tsx',
   '/screens/HomeScreen.tsx',
   '/screens/LessonsScreen.tsx',
   '/screens/ExercisesScreen.tsx',
