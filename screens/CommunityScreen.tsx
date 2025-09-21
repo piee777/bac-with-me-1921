@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCommunityPosts, addCommunityPost, addCommunityAnswer, fetchUserProfile, fetchSubjects } from '../services/api';
-import { CommunityPost, CommunityAnswer, UserProfile, Subject } from '../types';
+import { fetchCommunityPosts, addCommunityPost, addCommunityAnswer, fetchSubjects } from '../services/api';
+import { CommunityPost, Subject } from '../types';
 
 const PostDetailView: React.FC<{
     post: CommunityPost;
@@ -88,6 +88,53 @@ const PostDetailView: React.FC<{
     );
 };
 
+const PostQuestionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    question: string;
+    onQuestionChange: (value: string) => void;
+    subjects: Subject[];
+    selectedSubjectId: string;
+    onSubjectChange: (value: string) => void;
+    onSubmit: () => void;
+}> = ({ isOpen, onClose, question, onQuestionChange, subjects, selectedSubjectId, onSubjectChange, onSubmit }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 transition-opacity duration-300" style={{ opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? 'auto' : 'none' }}>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg p-6 transition-transform duration-300" style={{ transform: isOpen ? 'translateY(0)' : 'translateY(20px)', opacity: isOpen ? 1 : 0 }}>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">اطرح سؤالاً جديداً</h2>
+                <button onClick={onClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-7 h-7"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div className="space-y-4">
+                <textarea
+                    value={question}
+                    onChange={(e) => onQuestionChange(e.target.value)}
+                    placeholder="اكتب سؤالك هنا بوضوح..."
+                    rows={6}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
+                />
+                <select
+                    value={selectedSubjectId}
+                    onChange={(e) => onSubjectChange(e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
+                >
+                    {subjects.filter(s => s.lessons.length > 0).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+                <button onClick={onClose} className="bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold py-3 px-6 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">
+                    إلغاء
+                </button>
+                <button onClick={onSubmit} className="bg-teal-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-600 transition-colors disabled:bg-teal-300 dark:disabled:bg-teal-800/50 disabled:cursor-not-allowed" disabled={!question.trim()}>
+                    نشر السؤال
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
+
 const CommunityScreen: React.FC = () => {
     const [posts, setPosts] = useState<CommunityPost[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -156,43 +203,6 @@ const CommunityScreen: React.FC = () => {
         }
     };
 
-    const PostQuestionModal = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 transition-opacity duration-300" style={{ opacity: isModalOpen ? 1 : 0, pointerEvents: isModalOpen ? 'auto' : 'none' }}>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg p-6 transition-transform duration-300" style={{ transform: isModalOpen ? 'translateY(0)' : 'translateY(20px)', opacity: isModalOpen ? 1 : 0 }}>
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">اطرح سؤالاً جديداً</h2>
-                    <button onClick={() => setIsModalOpen(false)} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-7 h-7"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-                <div className="space-y-4">
-                    <textarea
-                        value={newQuestion}
-                        onChange={(e) => setNewQuestion(e.target.value)}
-                        placeholder="اكتب سؤالك هنا بوضوح..."
-                        rows={6}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
-                    />
-                    <select
-                        value={selectedSubjectId}
-                        onChange={(e) => setSelectedSubjectId(e.target.value)}
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
-                    >
-                        {subjects.filter(s => s.lessons.length > 0).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                </div>
-                <div className="mt-6 flex justify-end gap-3">
-                    <button onClick={() => setIsModalOpen(false)} className="bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold py-3 px-6 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">
-                        إلغاء
-                    </button>
-                    <button onClick={handlePost} className="bg-teal-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-teal-600 transition-colors disabled:bg-teal-300 dark:disabled:bg-teal-800/50 disabled:cursor-not-allowed" disabled={!newQuestion.trim()}>
-                        نشر السؤال
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-
     if (loading) return <div className="p-6 h-screen flex justify-center items-center">Loading Community...</div>;
     if (error) return <div className="p-6 h-screen flex justify-center items-center">{error}</div>;
 
@@ -243,7 +253,16 @@ const CommunityScreen: React.FC = () => {
                     )}
                 </div>
             </div>
-            <PostQuestionModal />
+            <PostQuestionModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                question={newQuestion}
+                onQuestionChange={setNewQuestion}
+                subjects={subjects}
+                selectedSubjectId={selectedSubjectId}
+                onSubjectChange={setSelectedSubjectId}
+                onSubmit={handlePost}
+            />
         </>
     );
 };

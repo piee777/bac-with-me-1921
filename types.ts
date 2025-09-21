@@ -1,4 +1,4 @@
-export type Screen = 'home' | 'lessons' | 'exercises' | 'assistant' | 'profile' | 'community' | 'quick-review' | 'exam' | 'leaderboard' | 'past-exams';
+export type Screen = 'home' | 'lessons' | 'exercises' | 'assistant' | 'profile' | 'community' | 'quick-review' | 'exam' | 'leaderboard' | 'past-exams' | 'exam-generator' | 'study-plan';
 
 export interface UserProfile {
   id: string;

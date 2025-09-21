@@ -32,6 +32,8 @@ const urlsToCache = [
   '/screens/ExamScreen.tsx',
   '/screens/LeaderboardScreen.tsx',
   '/screens/PastExamsScreen.tsx',
+  '/screens/ExamGeneratorScreen.tsx',
+  '/screens/StudyPlanScreen.tsx',
   // Services
   '/services/api.ts',
   '/services/geminiService.ts',

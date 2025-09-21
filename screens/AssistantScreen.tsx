@@ -51,22 +51,48 @@ const AssistantScreen: React.FC = () => {
         setError(null);
         
         try {
-            // Pass the conversation history to the service function.
             const stream = await getTutorResponse(currentInput, language, historyForApi, currentImage ?? undefined);
             
-            let currentModelMessage = "";
-            setMessages(prev => prev.slice(0, -1)); 
-            const placeholderMessage = { role: 'model' as const, parts: [{ text: '' }] };
-            setMessages(prev => [...prev, placeholderMessage]);
+            // Replace the loading message with an empty one for the model's response
+            setMessages(prev => [
+                ...prev.filter(m => !m.isLoading),
+                { role: 'model', parts: [{ text: '' }] }
+            ]);
 
-            for await (const chunk of stream) {
-                currentModelMessage += chunk.text;
+            let fullText = "";
+            const streamReaderPromise = (async () => {
+                for await (const chunk of stream) {
+                    fullText += chunk.text;
+                }
+            })();
+
+            // This interval will periodically update the UI with the latest accumulated text
+            const renderInterval = setInterval(() => {
                 setMessages(prev => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = { role: 'model', parts: [{ text: currentModelMessage }] };
-                    return newMessages;
+                    const lastMessage = prev[prev.length - 1];
+                    const firstPart = lastMessage?.parts[0];
+                    // Only update if the text has changed
+                    // FIX: Added a type guard ('text' in firstPart) to ensure we only access the text property when it exists, resolving a TypeScript error.
+                    if (lastMessage && lastMessage.role === 'model' && firstPart && 'text' in firstPart && firstPart.text !== fullText) {
+                        const newMessages = [...prev];
+                        newMessages[newMessages.length - 1] = { role: 'model', parts: [{ text: fullText }] };
+                        return newMessages;
+                    }
+                    return prev;
                 });
-            }
+            }, 60); // Update roughly every 4 frames for a smooth but fast feel.
+
+            await streamReaderPromise; // Wait for the stream to complete
+
+            clearInterval(renderInterval); // Stop the periodic updates
+
+            // Perform one final render to ensure the entire message is displayed
+            setMessages(prev => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1] = { role: 'model', parts: [{ text: fullText }] };
+                return newMessages;
+            });
+
         } catch (e) {
             const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
             setError(`Error: ${errorMessage}`);
@@ -143,7 +169,7 @@ const AssistantScreen: React.FC = () => {
                 <div className="p-2 bg-white dark:bg-slate-800 rounded-lg mb-2 flex items-center justify-between shadow-md">
                     <img src={image.preview} alt="Preview" className="w-12 h-12 object-cover rounded" />
                     <button onClick={() => setImage(null)} className="text-red-500 p-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        <svg xmlns="http://www.w.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
             )}

@@ -11,6 +11,8 @@ import QuickReviewScreen from './screens/QuickReviewScreen';
 import ExamScreen from './screens/ExamScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import PastExamsScreen from './screens/PastExamsScreen';
+import ExamGeneratorScreen from './screens/ExamGeneratorScreen';
+import StudyPlanScreen from './screens/StudyPlanScreen';
 
 const MainApp: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<Screen>('home');
@@ -52,6 +54,10 @@ const MainApp: React.FC = () => {
         return <LeaderboardScreen setActiveScreen={setActiveScreen} />;
       case 'past-exams':
         return <PastExamsScreen setActiveScreen={setActiveScreen} />;
+      case 'exam-generator':
+        return <ExamGeneratorScreen setActiveScreen={setActiveScreen} />;
+      case 'study-plan':
+        return <StudyPlanScreen setActiveScreen={setActiveScreen} />;
       default:
         return <HomeScreen setActiveScreen={setActiveScreen} theme={theme} toggleTheme={toggleTheme} />;
     }

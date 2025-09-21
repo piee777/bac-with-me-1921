@@ -134,6 +134,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ setActiveScreen, theme, toggleT
                         description="اختبر نفسك في ظروف البكالوريا."
                         onClick={() => setActiveScreen('exam')}
                     />
+                    <FeatureCard
+                        icon="🤖"
+                        title="صانع الامتحانات"
+                        description="أنشئ امتحاناً مخصصاً بالذكاء الاصطناعي."
+                        onClick={() => setActiveScreen('exam-generator')}
+                    />
+                    <FeatureCard
+                        icon="🗓️"
+                        title="مولد خطة المراجعة"
+                        description="أنشئ جدول مراجعة ذكي."
+                        onClick={() => setActiveScreen('study-plan')}
+                    />
                      <FeatureCard
                         icon="📚"
                         title="مكتبة الامتحانات"
