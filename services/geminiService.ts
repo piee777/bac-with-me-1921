@@ -11,13 +11,10 @@ let ai: GoogleGenAI | null = null;
 if (IS_DEV) {
     try {
         ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-        console.log("Running in DEV mode. Using direct API calls.");
     } catch (error) {
         console.error("Failed to initialize GoogleGenAI in DEV mode:", error);
         // Fallback to proxy if initialization fails
     }
-} else {
-    console.log("Running in PROD mode. Using Netlify proxy.");
 }
 
 // =================================================================================
@@ -80,11 +77,15 @@ async function* streamProxyRequest(action: string, body: object): AsyncGenerator
 // DEV MODE: DIRECT API CALL FUNCTIONS
 // =================================================================================
 
-const SYSTEM_INSTRUCTIONS: { [key: string]: string } = {
-    ar: "أنت مدرس ذكاء اصطناعي شخصي وخبير في منهج البكالوريا الجزائري. مهمتك هي مساعدة الطالب 'عادل'. تكيّف مع مستواه وقدّم شروحات بسيطة وواضحة. عند شرح التمارين، قدم الإجابة خطوة بخطوة. إذا رفع 'عادل' صورة، قم بتحليلها واشرح التمرين. كن محفزاً ومشجعاً دائماً. إذا لاحظت أنه يخطئ في موضوع معين، اقترح عليه بلطف دروساً أو تمارين إضافية لمراجعتها.",
-    fr: "Tu es un tuteur IA personnel, expert du programme du baccalauréat algérien. Ton rôle est d'aider l'étudiant 'Adel'. Adapte-toi à son niveau et fournis des explications simples. Pour les exercices, explique la solution étape par étape. Si 'Adel' envoie une image, analyse-la. Sois motivant. Si tu remarques des erreurs récurrentes, suggère-lui gentiment de revoir certaines leçons.",
-    en: "You are a personal AI tutor, an expert in the Algerian baccalaureate curriculum. Your mission is to help the student 'Adel'. Adapt to his level and provide simple explanations. Explain exercises step-by-step. If 'Adel' uploads an image, analyze it. Be motivating. If you notice recurring mistakes on a topic, gently suggest specific lessons or exercises for him to review."
+const createSystemInstruction = (userName: string, lang: string): string => {
+    const instructions = {
+        ar: `أنت مدرس ذكاء اصطناعي شخصي وخبير في منهج البكالوريا الجزائري. مهمتك هي مساعدة الطالب '${userName}'. تكيّف مع مستواه وقدّم شروحات بسيطة وواضحة. عند شرح التمارين، قدم الإجابة خطوة بخطوة. إذا رفع '${userName}' صورة، قم بتحليلها واشرح التمرين. كن محفزاً ومشجعاً دائماً. إذا لاحظت أنه يخطئ في موضوع معين، اقترح عليه بلطف دروساً أو تمارين إضافية لمراجعتها.`,
+        fr: `Tu es un tuteur IA personnel, expert du programme du baccalauréat algérien. Ton rôle est d'aider l'étudiant '${userName}'. Adapte-toi à son niveau et fournis des explications simples. Pour les exercices, explique la solution étape par étape. Si '${userName}' envoie une image, analyse-la. Sois motivant. Si tu remarques des erreurs récurrentes, suggère-lui gentiment de revoir certaines leçons.`,
+        en: `You are a personal AI tutor, an expert in the Algerian baccalaureate curriculum. Your mission is to help the student '${userName}'. Adapt to his level and provide simple explanations. Explain exercises step-by-step. If '${userName}' uploads an image, analyze it. Be motivating. If you notice recurring mistakes on a topic, gently suggest specific lessons or exercises for him to review.`
+    };
+    return instructions[lang as keyof typeof instructions] || instructions['ar'];
 };
+
 
 const sanitizeHistory = (history: any[]): Content[] => {
     if (!Array.isArray(history)) return [];
@@ -98,12 +99,13 @@ const sanitizeHistory = (history: any[]): Content[] => {
 
 async function* handleDirectChat(
     ai: GoogleGenAI,
-    body: { prompt: string; language: string; image?: any; history: any[] }
+    body: { prompt: string; language: string; image?: any; history: any[]; userName: string; }
 ): AsyncGenerator<{ text: string }> {
-    const { prompt, language = 'ar', image, history = [] } = body;
+    const { prompt, language = 'ar', image, history = [], userName } = body;
+    const systemInstruction = createSystemInstruction(userName, language);
     const chat = ai.chats.create({
         model: "gemini-2.5-flash",
-        config: { systemInstruction: SYSTEM_INSTRUCTIONS[language], thinkingConfig: { thinkingBudget: 0 } },
+        config: { systemInstruction, thinkingConfig: { thinkingBudget: 0 } },
         history: sanitizeHistory(history),
     });
     if (!prompt && !image) throw new Error("Empty prompt.");
@@ -129,7 +131,23 @@ async function* handleDirectExam(
     body: { topic: string; questionCount: number; difficulty: string }
 ): AsyncGenerator<{ text: string }> {
     const { topic, questionCount, difficulty } = body;
-    const prompt = `بصفتك خبيرًا في إنشاء الاختبارات، قم بإنشاء ${questionCount} أسئلة من نوع الاختيار من متعدد (MCQ) حول الموضوع التالي: "${topic}". يجب أن تكون الأسئلة بمستوى صعوبة "${difficulty}" ومناسبة لطلاب البكالوريا في الجزائر. يجب أن يكون الإخراج عبارة عن كائن JSON واحد يحتوي على مفتاح "exam"، وقيمته هي مصفوفة من كائنات الأسئلة. لكل سؤال، قدم 3 خيارات، واحد منها فقط صحيح. استنتج اسم المادة الدراسية (مثل الرياضيات، الفيزياء) من الموضوع وأدرجه في الحقل "subject" لكل سؤال. قم بتعيين قيمة الحقل "type" إلى "mcq" لكل سؤال. لا تقم بتضمين أي markdown formatting.`;
+    const prompt = `بصفتك خبيرًا في إنشاء الاختبارات، قم بإنشاء ${questionCount} أسئلة من نوع الاختيار من متعدد (MCQ) حول الموضوع التالي: "${topic}". 
+    يجب أن تكون الأسئلة بمستوى صعوبة "${difficulty}" ومناسبة لطلاب البكالوريا في الجزائر. 
+    يجب أن يكون الإخراج عبارة عن كائن JSON واحد يحتوي على مفتاح "exam"، وقيمته هي مصفوفة من كائنات الأسئلة. 
+    لكل سؤال، يجب أن يحتوي الكائن على:
+    - "question": (string) نص السؤال.
+    - "options": (array) مصفوفة من 3 كائنات للخيارات.
+    - "subject": (string) اسم المادة المستنتج من الموضوع.
+    - "type": (string) بقيمة "mcq".
+    
+    كل كائن في مصفوفة "options" يجب أن يحتوي على:
+    - "text": (string) نص الخيار.
+    - "is_correct": (boolean) تكون true لخيار واحد فقط، و false للآخرين.
+
+    مثال على بنية سؤال واحد:
+    { "question": "...", "options": [{ "text": "...", "is_correct": false }, { "text": "...", "is_correct": true }, { "text": "...", "is_correct": false }], "subject": "...", "type": "mcq" }
+
+    لا تقم بتضمين أي markdown formatting.`;
     
     const stream = await ai.models.generateContentStream({
         model: "gemini-2.5-flash",
@@ -175,10 +193,12 @@ export const getTutorResponse = (
     history: ChatMessage[],
     image?: { b64: string, mimeType: string }
 ): Promise<AsyncGenerator<{ text: string }>> => {
+    const userName = localStorage.getItem('userName') || 'الطالب';
+
     if (IS_DEV && ai) {
-        return Promise.resolve(handleDirectChat(ai, { prompt, language, image, history }));
+        return Promise.resolve(handleDirectChat(ai, { prompt, language, image, history, userName }));
     }
-    return Promise.resolve(streamProxyRequest('chat', { prompt, language, image, history: history.filter(m => !m.isLoading) }));
+    return Promise.resolve(streamProxyRequest('chat', { prompt, language, image, history: history.filter(m => !m.isLoading), userName }));
 };
 
 export const generateExam = (

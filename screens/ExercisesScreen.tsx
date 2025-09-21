@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchDailyChallenge } from '../services/api';
-import { Exercise } from '../types';
+import { fetchDailyChallenge, recordExerciseResult } from '../services/api';
+import { Exercise, QuizOption } from '../types';
 import ProgressBar from '../components/ProgressBar';
 
 const ExercisesScreen: React.FC = () => {
@@ -8,13 +8,15 @@ const ExercisesScreen: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [selectedOption, setSelectedOption] = useState<string | null>(null);
+    const [selectedOption, setSelectedOption] = useState<QuizOption | null>(null);
     const [correctAnswers, setCorrectAnswers] = useState(0);
     const [submitted, setSubmitted] = useState<boolean>(false);
+    const [isFinished, setIsFinished] = useState(false);
     
     const loadChallenge = async () => {
         try {
             setLoading(true);
+            setIsFinished(false);
             setChallenge(await fetchDailyChallenge());
             setCurrentQuestionIndex(0);
             setCorrectAnswers(0);
@@ -33,6 +35,13 @@ const ExercisesScreen: React.FC = () => {
         loadChallenge();
     }, []);
 
+    useEffect(() => {
+        if (currentQuestionIndex >= challenge.length && challenge.length > 0) {
+            setIsFinished(true);
+            recordExerciseResult(correctAnswers);
+        }
+    }, [currentQuestionIndex, challenge, correctAnswers]);
+
     if (loading) {
         return <div className="p-6 h-screen flex justify-center items-center">Loading Daily Challenge...</div>;
     }
@@ -45,9 +54,8 @@ const ExercisesScreen: React.FC = () => {
     }
 
     const currentQuestion = challenge[currentQuestionIndex];
-    const isFinished = currentQuestionIndex >= challenge.length;
     
-    const handleOptionSelect = (option: string) => {
+    const handleOptionSelect = (option: QuizOption) => {
         if (submitted) return;
         setSelectedOption(option);
     };
@@ -55,7 +63,7 @@ const ExercisesScreen: React.FC = () => {
     const handleSubmit = () => {
         if (!selectedOption) return;
         setSubmitted(true);
-        if (selectedOption === currentQuestion.correctAnswer) {
+        if (selectedOption.is_correct) {
             setCorrectAnswers(prev => prev + 1);
         }
     };
@@ -66,16 +74,16 @@ const ExercisesScreen: React.FC = () => {
         setCurrentQuestionIndex(prev => prev + 1);
     };
     
-    const getButtonClass = (option: string) => {
+    const getButtonClass = (option: QuizOption) => {
         if (!submitted) {
-            return selectedOption === option 
+            return selectedOption?.text === option.text
                 ? 'bg-teal-500 text-white border-teal-500' 
                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400';
         }
-        if (option === currentQuestion.correctAnswer) {
+        if (option.is_correct) {
             return 'bg-green-500 text-white border-green-500';
         }
-        if (option === selectedOption && option !== currentQuestion.correctAnswer) {
+        if (selectedOption?.text === option.text && !option.is_correct) {
             return 'bg-red-500 text-white border-red-500';
         }
         return 'bg-white dark:bg-slate-800 opacity-60 border-slate-200 dark:border-slate-700';
@@ -111,23 +119,18 @@ const ExercisesScreen: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-6 text-center h-20 flex items-center justify-center">{currentQuestion.question}</h2>
                 <div className="space-y-4">
-                    {currentQuestion.type === 'mcq' && currentQuestion.options?.map((option) => (
-                        <button key={option} onClick={() => handleOptionSelect(option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all duration-200 ${getButtonClass(option)}`} disabled={submitted}>
-                            {option}
-                        </button>
-                    ))}
-                    {currentQuestion.type === 'true-false' && ['True', 'False'].map((option) => (
-                         <button key={option} onClick={() => handleOptionSelect(option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all duration-200 ${getButtonClass(option)}`} disabled={submitted}>
-                            {option === 'True' ? 'صحيح' : 'خطأ'}
+                    {currentQuestion.options.map((option) => (
+                        <button key={option.text} onClick={() => handleOptionSelect(option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all duration-200 ${getButtonClass(option)}`} disabled={submitted}>
+                            {option.text}
                         </button>
                     ))}
                 </div>
 
                 <div className="mt-8 h-28">
                 { submitted && (
-                    <div className="text-center p-4 rounded-lg mb-4 flex flex-col justify-center h-full" >
-                        <p className={`text-xl font-bold mb-4 ${selectedOption === currentQuestion.correctAnswer ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                           {selectedOption === currentQuestion.correctAnswer ? 'إجابة صحيحة!' : 'إجابة خاطئة.'}
+                    <div className="text-center p-4 rounded-lg mb-4 flex flex-col justify-center h-full">
+                        <p className={`text-xl font-bold mb-4 ${selectedOption?.is_correct ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                           {selectedOption?.is_correct ? 'إجابة صحيحة!' : 'إجابة خاطئة.'}
                         </p>
                          <button onClick={handleNext} className="w-full bg-slate-800 dark:bg-slate-700 text-white font-bold p-4 rounded-xl shadow-md hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">
                             التالي

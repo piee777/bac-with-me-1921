@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bacwithme-cache-v3';
+const CACHE_NAME = 'bacwithme-cache-v5'; // Incremented cache version
 // Add all the files that should be cached for offline use.
 const urlsToCache = [
   '/',
@@ -22,6 +22,7 @@ const urlsToCache = [
   '/components/icons/SunIcon.tsx',
   '/components/icons/MoonIcon.tsx',
   // Screens
+  '/screens/SetupScreen.tsx', // Added SetupScreen
   '/screens/HomeScreen.tsx',
   '/screens/LessonsScreen.tsx',
   '/screens/ExercisesScreen.tsx',
@@ -38,6 +39,7 @@ const urlsToCache = [
   '/services/api.ts',
   '/services/geminiService.ts',
   '/services/supabaseClient.ts'
+  // Removed '/screens/AuthScreen.tsx'
 ];
 
 // Install a service worker

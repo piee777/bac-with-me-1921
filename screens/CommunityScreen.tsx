@@ -149,7 +149,6 @@ const CommunityScreen: React.FC = () => {
         const loadData = async () => {
             try {
                 setLoading(true);
-                // No longer need to fetch user profile here, API calls handle it
                 const [postsData, subjectsData] = await Promise.all([
                     fetchCommunityPosts(),
                     fetchSubjects(),
@@ -180,7 +179,8 @@ const CommunityScreen: React.FC = () => {
             setNewQuestion('');
             setSelectedSubjectId(subjects.find(s => s.lessons.length > 0)?.id || subjects[0]?.id || '');
         } catch (err) {
-            alert("Failed to create post.");
+            const message = err instanceof Error ? err.message : "حدث خطأ غير متوقع.";
+            alert(message);
         }
     };
 
@@ -199,7 +199,8 @@ const CommunityScreen: React.FC = () => {
             setPosts(updatedPosts);
             setSelectedPost(prev => prev ? { ...prev, answers: [...prev.answers, newAnswer] } : null);
         } catch (err) {
-            alert("Failed to add answer.");
+            const message = err instanceof Error ? err.message : "حدث خطأ غير متوقع.";
+            alert(message);
         }
     };
 

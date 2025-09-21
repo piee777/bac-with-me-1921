@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSubjects } from '../services/api';
-import { Subject, Lesson, QuizQuestion } from '../types';
+import { fetchSubjects, markLessonAsComplete } from '../services/api';
+import { Subject, Lesson, QuizQuestion, QuizOption } from '../types';
 
 const subjectColors: { [key: string]: { bg: string, text: string, border: string } } = {
     blue: { bg: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-400' },
@@ -17,12 +17,13 @@ const subjectColors: { [key: string]: { bg: string, text: string, border: string
 
 const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [selectedOption, setSelectedOption] = useState<string | null>(null);
+    const [selectedOption, setSelectedOption] = useState<QuizOption | null>(null);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     const question = quiz[currentQuestionIndex];
+    const correctAnswer = question.options.find(opt => opt.is_correct);
 
-    const handleAnswer = (option: string) => {
+    const handleAnswer = (option: QuizOption) => {
         if (isSubmitted) return;
         setSelectedOption(option);
         setIsSubmitted(true);
@@ -34,9 +35,9 @@ const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
         setCurrentQuestionIndex((prev) => (prev + 1) % quiz.length);
     };
 
-    const getButtonClass = (option: string) => {
+    const getButtonClass = (option: QuizOption) => {
         if (!isSubmitted) return 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-teal-500 dark:hover:border-teal-400';
-        if (option === question.correctAnswer) return 'bg-green-500 text-white border-green-500';
+        if (option.is_correct) return 'bg-green-500 text-white border-green-500';
         if (option === selectedOption) return 'bg-red-500 text-white border-red-500';
         return 'bg-white dark:bg-slate-700 opacity-60';
     };
@@ -46,15 +47,15 @@ const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
             <p className="font-bold mb-4">{question.question}</p>
             <div className="space-y-2">
                 {question.options.map(opt => (
-                    <button key={opt} onClick={() => handleAnswer(opt)} className={`w-full text-right p-3 rounded-lg border-2 transition-colors ${getButtonClass(opt)}`}>
-                        {opt}
+                    <button key={opt.text} onClick={() => handleAnswer(opt)} className={`w-full text-right p-3 rounded-lg border-2 transition-colors ${getButtonClass(opt)}`}>
+                        {opt.text}
                     </button>
                 ))}
             </div>
             {isSubmitted && (
                 <div className="mt-4 text-center">
-                    <p className={`font-bold ${selectedOption === question.correctAnswer ? 'text-green-600' : 'text-red-600'}`}>
-                        {selectedOption === question.correctAnswer ? 'إجابة صحيحة!' : `الإجابة الصحيحة: ${question.correctAnswer}`}
+                    <p className={`font-bold ${selectedOption?.is_correct ? 'text-green-600' : 'text-red-600'}`}>
+                        {selectedOption?.is_correct ? 'إجابة صحيحة!' : `الإجابة الصحيحة: ${correctAnswer?.text}`}
                     </p>
                     <button onClick={handleNext} className="mt-2 bg-slate-700 text-white px-4 py-2 rounded-lg">السؤال التالي</button>
                 </div>
@@ -63,7 +64,7 @@ const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
     );
 };
 
-const LessonDetailView: React.FC<{ lesson: Lesson; onBack: () => void, color: string }> = ({ lesson, onBack, color }) => {
+const LessonDetailView: React.FC<{ lesson: Lesson; onBack: () => void; color: string; onCompleteLesson: (lessonId: string, subjectId: string) => void; }> = ({ lesson, onBack, color, onCompleteLesson }) => {
     const colorClasses = subjectColors[color] || subjectColors.default;
 
     const handleListen = () => {
@@ -109,6 +110,19 @@ const LessonDetailView: React.FC<{ lesson: Lesson; onBack: () => void, color: st
                 </div>
             )}
         </div>
+         <div className="mt-8">
+            <button
+                onClick={() => onCompleteLesson(lesson.id, lesson.subjectId)}
+                className={`w-full p-4 rounded-xl text-lg font-extrabold transition-colors duration-300 flex items-center justify-center gap-3 ${
+                    lesson.completed 
+                        ? 'bg-green-500 text-white cursor-default' 
+                        : 'bg-teal-500 text-white hover:bg-teal-600'
+                }`}
+                disabled={lesson.completed}
+            >
+                {lesson.completed ? '✅ تم إكمال الدرس بنجاح' : 'إكمال الدرس'}
+            </button>
+        </div>
     </div>
 )};
 
@@ -122,7 +136,11 @@ const BackButton: React.FC<{onClick: () => void, text: string}> = ({ onClick, te
     </button>
 );
 
-const SubjectDetailView: React.FC<{ subject: Subject; onBack: () => void; onSelectLesson: (lesson: Lesson) => void; }> = ({ subject, onBack, onSelectLesson }) => {
+const SubjectDetailView: React.FC<{ 
+    subject: Subject; 
+    onBack: () => void; 
+    onSelectLesson: (lesson: Lesson) => void; 
+}> = ({ subject, onBack, onSelectLesson }) => {
     const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
 
     const filteredLessons = subject.lessons.filter(lesson => 
@@ -186,22 +204,57 @@ const LessonsScreen: React.FC = () => {
     const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const loadSubjects = async () => {
+        try {
+            setLoading(true);
+            const data = await fetchSubjects();
+            setSubjects(data);
+            setError(null);
+        } catch (err) {
+            setError('Failed to load subjects.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+    
     useEffect(() => {
-        const loadSubjects = async () => {
-            try {
-                setLoading(true);
-                const data = await fetchSubjects();
-                setSubjects(data);
-                setError(null);
-            } catch (err) {
-                setError('Failed to load subjects.');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
         loadSubjects();
     }, []);
+    
+    const handleCompleteLesson = async (lessonId: string, subjectId: string) => {
+        try {
+            // Optimistic UI update
+            const updateState = (lessonSetter: React.Dispatch<React.SetStateAction<Lesson | null>>, subjectsSetter: React.Dispatch<React.SetStateAction<Subject[]>>) => {
+                subjectsSetter(prevSubjects => 
+                    prevSubjects.map(s => ({
+                        ...s,
+                        lessons: s.lessons.map(l => 
+                            l.id === lessonId ? { ...l, completed: true } : l
+                        )
+                    }))
+                );
+                lessonSetter(prevLesson => 
+                    prevLesson && prevLesson.id === lessonId ? { ...prevLesson, completed: true } : prevLesson
+                );
+            };
+            
+            updateState(setSelectedLesson, setSubjects);
+
+            if (selectedSubject) {
+                const updatedLessons = selectedSubject.lessons.map(l => l.id === lessonId ? { ...l, completed: true } : l);
+                setSelectedSubject({...selectedSubject, lessons: updatedLessons});
+            }
+
+            // Call API to persist the change
+            await markLessonAsComplete(lessonId, subjectId);
+            
+        } catch (error) {
+            console.error("Failed to update lesson status:", error);
+             alert('فشل تحديث حالة الدرس. يرجى المحاولة مرة أخرى.');
+             loadSubjects(); 
+        }
+    };
 
     const filteredSubjects = subjects.filter(subject => 
         subject.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -210,7 +263,12 @@ const LessonsScreen: React.FC = () => {
     if (selectedLesson && selectedSubject) {
         return (
             <div className="p-6">
-                <LessonDetailView lesson={selectedLesson} onBack={() => setSelectedLesson(null)} color={selectedSubject.color} />
+                <LessonDetailView 
+                    lesson={selectedLesson} 
+                    onBack={() => setSelectedLesson(null)} 
+                    color={selectedSubject.color}
+                    onCompleteLesson={handleCompleteLesson}
+                />
             </div>
         )
     }

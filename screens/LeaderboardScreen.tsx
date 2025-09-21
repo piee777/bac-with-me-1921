@@ -10,11 +10,13 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ setActiveScreen }
     const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
     useEffect(() => {
-        const loadLeaderboard = async () => {
+        const loadData = async () => {
             try {
                 setLoading(true);
+                setCurrentUserName(localStorage.getItem('userName'));
                 const data = await fetchLeaderboard();
                 setLeaderboard(data);
                 setError(null);
@@ -25,7 +27,7 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ setActiveScreen }
                 setLoading(false);
             }
         };
-        loadLeaderboard();
+        loadData();
     }, []);
 
     return (
@@ -43,7 +45,7 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ setActiveScreen }
             {!loading && !error && (
                 <div className="space-y-4">
                     {leaderboard.map((user, index) => (
-                        <div key={user.id} className={`p-4 rounded-xl flex items-center gap-4 shadow ${user.name === 'عادل' ? 'bg-teal-100 dark:bg-teal-900/50 border-2 border-teal-500' : 'bg-white dark:bg-slate-800'}`}>
+                        <div key={user.id} className={`p-4 rounded-xl flex items-center gap-4 shadow ${user.name === currentUserName ? 'bg-teal-100 dark:bg-teal-900/50 border-2 border-teal-500' : 'bg-white dark:bg-slate-800'}`}>
                             <span className="text-xl font-bold w-8 text-center text-slate-500 dark:text-slate-400">
                                 {index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : user.rank}
                             </span>

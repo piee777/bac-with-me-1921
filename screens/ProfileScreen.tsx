@@ -59,7 +59,7 @@ const ProfileScreen: React.FC = () => {
             <div className="flex flex-col items-center mb-8">
                 <img src={user.avatarUrl} alt="User Avatar" className="w-28 h-28 rounded-full border-4 border-white dark:border-slate-700 shadow-xl mb-4" />
                 <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">{user.name}</h1>
-                <p className="text-slate-500 dark:text-slate-400">طالب بكالوريا طموح</p>
+                <p className="text-teal-500 font-semibold bg-teal-50 dark:bg-teal-900/50 dark:text-teal-300 px-3 py-1 rounded-full mt-2">{user.stream}</p>
             </div>
 
             <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg mb-8">

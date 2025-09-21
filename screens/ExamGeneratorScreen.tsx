@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { generateExam } from '../services/geminiService';
-import { Screen, Exercise } from '../types';
+import { Screen, Exercise, QuizOption } from '../types';
 
 interface ExamGeneratorScreenProps {
   setActiveScreen: (screen: Screen) => void;
@@ -63,7 +63,14 @@ const ExamGeneratorScreen: React.FC<ExamGeneratorScreenProps> = ({ setActiveScre
             const result = JSON.parse(cleanedJson);
 
             if (result && result.exam) {
-                setExam(result.exam.map((q: Exercise, index: number) => ({...q, id: `gen-${index}`})));
+                 const formattedExam: Exercise[] = result.exam.map((q: any, index: number): Exercise => ({
+                    id: `gen-${index}`,
+                    question: q.question || 'Missing question',
+                    subject: q.subject || 'General',
+                    type: 'mcq',
+                    options: q.options || [],
+                }));
+                setExam(formattedExam);
                 setStep('display');
             } else {
                 throw new Error("Invalid response structure from AI.");
@@ -93,14 +100,15 @@ const ExamGeneratorScreen: React.FC<ExamGeneratorScreenProps> = ({ setActiveScre
         setScore(0);
     };
 
-    const handleSelectAnswer = (questionId: string, option: string) => {
-        setUserSelections(prev => ({ ...prev, [questionId]: option }));
+    const handleSelectAnswer = (questionId: string, optionText: string) => {
+        setUserSelections(prev => ({ ...prev, [questionId]: optionText }));
     };
 
     const handleFinishExam = () => {
         let correctCount = 0;
         exam.forEach(q => {
-            if(userSelections[q.id] === q.correctAnswer) {
+            const correctAnswerText = q.options.find(opt => opt.is_correct)?.text;
+            if(userSelections[q.id] === correctAnswerText) {
                 correctCount++;
             }
         });
@@ -205,25 +213,26 @@ const ExamGeneratorScreen: React.FC<ExamGeneratorScreenProps> = ({ setActiveScre
                 <div className="space-y-4">
                     {exam.map((question, index) => {
                         const questionId = question.id || `gen-${index}`;
-                        const selectedOption = userSelections[questionId];
+                        const selectedOptionText = userSelections[questionId];
+                        const correctAnswerText = question.options.find(opt => opt.is_correct)?.text;
                         
                         return (
                             <div key={questionId} className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow">
                                 <p className="font-bold mb-3 text-slate-800 dark:text-white">{index + 1}. {question.question}</p>
                                 <div className="space-y-2">
-                                    {question.options?.map(option => {
+                                    {question.options.map(option => {
                                         let buttonClass = '';
 
                                         if (!isFinished) {
-                                            if (selectedOption === option) {
+                                            if (selectedOptionText === option.text) {
                                                 buttonClass = 'bg-teal-500 text-white border-teal-500';
                                             } else {
                                                 buttonClass = 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-500';
                                             }
                                         } else {
-                                            if (option === question.correctAnswer) {
+                                            if (option.is_correct) {
                                                 buttonClass = 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border-green-300 dark:border-green-700';
-                                            } else if (option === selectedOption) {
+                                            } else if (option.text === selectedOptionText) {
                                                 buttonClass = 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700';
                                             } else {
                                                 buttonClass = 'bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 opacity-60';
@@ -232,12 +241,12 @@ const ExamGeneratorScreen: React.FC<ExamGeneratorScreenProps> = ({ setActiveScre
                                         
                                         return (
                                             <button
-                                                key={option}
-                                                onClick={() => handleSelectAnswer(questionId, option)}
+                                                key={option.text}
+                                                onClick={() => handleSelectAnswer(questionId, option.text)}
                                                 disabled={isFinished}
                                                 className={`w-full text-right p-3 rounded-lg border font-medium transition-colors ${buttonClass}`}
                                             >
-                                                {option}
+                                                {option.text}
                                             </button>
                                         );
                                     })}

@@ -52,7 +52,8 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ setActiveScreen }) => {
     const finishExam = () => {
         let finalScore = 0;
         questions.forEach(q => {
-            if(answers[q.id] === q.correctAnswer) finalScore++;
+            const correctAnswerText = q.options.find(opt => opt.is_correct)?.text;
+            if(answers[q.id] === correctAnswerText) finalScore++;
         });
         setScore(finalScore);
         setExamState('finished');
@@ -101,6 +102,8 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ setActiveScreen }) => {
     }
     
     if (examState === 'finished') {
+        const incorrectQuestions = questions.filter(q => answers[q.id] !== q.options.find(opt => opt.is_correct)?.text);
+
         return (
             <div className="p-6">
                 <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-4 text-center">نتيجة الامتحان</h1>
@@ -114,15 +117,18 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ setActiveScreen }) => {
                 <div className="max-w-md mx-auto">
                     <h2 className="text-xl font-bold mb-3">مراجعة الأخطاء:</h2>
                      <div className="space-y-4">
-                        {questions.filter(q => answers[q.id] !== q.correctAnswer).length === 0 
+                        {incorrectQuestions.length === 0 
                          ? <p className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/50 p-4 rounded-lg text-center font-bold">رائع! لم ترتكب أي أخطاء.</p>
-                         : questions.filter(q => answers[q.id] !== q.correctAnswer).map(q => (
-                            <div key={q.id} className="bg-red-50 dark:bg-red-900/50 p-4 rounded-lg border border-red-200 dark:border-red-800">
-                                <p className="font-bold mb-2">{q.question}</p>
-                                <p className="text-sm"><span className="font-semibold text-red-600 dark:text-red-400">إجابتك:</span> {answers[q.id] ? (q.type === 'true-false' ? (answers[q.id] === 'True' ? 'صحيح' : 'خطأ') : answers[q.id]) : 'لم تجب'}</p>
-                                <p className="text-sm"><span className="font-semibold text-green-600 dark:text-green-400">الإجابة الصحيحة:</span> {q.type === 'true-false' ? (q.correctAnswer === 'True' ? 'صحيح' : 'خطأ') : q.correctAnswer}</p>
-                            </div>
-                        ))}
+                         : incorrectQuestions.map(q => {
+                             const correctAnswerText = q.options.find(opt => opt.is_correct)?.text;
+                             return (
+                                <div key={q.id} className="bg-red-50 dark:bg-red-900/50 p-4 rounded-lg border border-red-200 dark:border-red-800">
+                                    <p className="font-bold mb-2">{q.question}</p>
+                                    <p className="text-sm"><span className="font-semibold text-red-600 dark:text-red-400">إجابتك:</span> {answers[q.id] || 'لم تجب'}</p>
+                                    <p className="text-sm"><span className="font-semibold text-green-600 dark:text-green-400">الإجابة الصحيحة:</span> {correctAnswerText}</p>
+                                </div>
+                             )
+                         })}
                     </div>
                 </div>
 
@@ -152,16 +158,11 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ setActiveScreen }) => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg">
                  <h2 className="text-xl font-bold mb-6 text-center h-24 flex items-center justify-center">{currentQuestion.question}</h2>
                  <div className="space-y-4">
-                     {currentQuestion.type === 'mcq' && currentQuestion.options?.map(option => (
-                        <button key={option} onClick={() => handleAnswerSelect(currentQuestion.id, option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all ${answers[currentQuestion.id] === option ? 'bg-teal-500 text-white border-teal-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-teal-400'}`}>
-                           {option}
+                     {currentQuestion.options.map(option => (
+                        <button key={option.text} onClick={() => handleAnswerSelect(currentQuestion.id, option.text)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all ${answers[currentQuestion.id] === option.text ? 'bg-teal-500 text-white border-teal-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-teal-400'}`}>
+                           {option.text}
                         </button>
                      ))}
-                      {currentQuestion.type === 'true-false' && ['True', 'False'].map(option => (
-                        <button key={option} onClick={() => handleAnswerSelect(currentQuestion.id, option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all ${answers[currentQuestion.id] === option ? 'bg-teal-500 text-white border-teal-500' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-teal-400'}`}>
-                           {option === 'True' ? 'صحيح' : 'خطأ'}
-                        </button>
-                      ))}
                  </div>
             </div>
 

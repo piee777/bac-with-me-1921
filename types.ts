@@ -7,6 +7,7 @@ export interface UserProfile {
   points: number;
   streak: number;
   badges: Badge[];
+  stream: string;
 }
 
 export interface LeaderboardUser {
@@ -32,10 +33,14 @@ export interface Subject {
   lessons: Lesson[];
 }
 
+export interface QuizOption {
+  text: string;
+  is_correct: boolean;
+}
+
 export interface QuizQuestion {
     question: string;
-    options: string[];
-    correctAnswer: string;
+    options: QuizOption[];
 }
 
 export interface Lesson {
@@ -51,6 +56,7 @@ export interface Lesson {
   pdfUrl?: string;
   audioUrl?: string; // For text-to-speech
   quiz?: QuizQuestion[];
+  subjectId: string; // Added to easily track progress
 }
 
 export interface Exercise {
@@ -58,8 +64,7 @@ export interface Exercise {
   subject: string;
   type: 'mcq' | 'true-false';
   question: string;
-  options?: string[]; // only for mcq
-  correctAnswer: string; // "True", "False", or the correct option string
+  options: QuizOption[];
 }
 
 export interface Flashcard {
@@ -126,6 +131,7 @@ export interface Database {
           id: string
           post_id: string | null
           text: string
+          user_id: string | null
         }
         Insert: {
           author: string
@@ -134,6 +140,7 @@ export interface Database {
           id?: string
           post_id?: string | null
           text: string
+          user_id?: string | null
         }
         Update: {
           author?: string
@@ -142,12 +149,19 @@ export interface Database {
           id?: string
           post_id?: string | null
           text?: string
+          user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "answers_post_id_fkey"
             columns: ["post_id"]
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
             referencedColumns: ["id"]
           }
         ]
@@ -158,30 +172,20 @@ export interface Database {
           icon: string | null
           id: string
           name: string
-          profile_id: string | null
         }
         Insert: {
           description: string
           icon?: string | null
           id: string
           name: string
-          profile_id?: string | null
         }
         Update: {
           description?: string
           icon?: string | null
           id?: string
           name?: string
-          profile_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "badges_profile_id_fkey"
-            columns: ["profile_id"]
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       exercises: {
         Row: {
@@ -328,6 +332,7 @@ export interface Database {
           id: string
           question: string
           subject: string | null
+          user_id: string | null
         }
         Insert: {
           author: string
@@ -336,6 +341,7 @@ export interface Database {
           id?: string
           question: string
           subject?: string | null
+          user_id?: string | null
         }
         Update: {
           author?: string
@@ -344,8 +350,16 @@ export interface Database {
           id?: string
           question?: string
           subject?: string | null
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "posts_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       profiles: {
         Row: {
@@ -354,6 +368,7 @@ export interface Database {
           name: string
           points: number | null
           streak: number | null
+          stream: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -361,6 +376,7 @@ export interface Database {
           name: string
           points?: number | null
           streak?: number | null
+          stream?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -368,6 +384,7 @@ export interface Database {
           name?: string
           points?: number | null
           streak?: number | null
+          stream?: string | null
         }
         Relationships: [
           {
@@ -396,6 +413,83 @@ export interface Database {
           icon?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          awarded_at: string | null
+          badge_id: string
+          id: number
+          user_name: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          badge_id: string
+          id?: number
+          user_name: string
+        }
+        Update: {
+          awarded_at?: string | null
+          badge_id?: string
+          id?: number
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_lesson_progress: {
+        Row: {
+          created_at: string | null
+          id: number
+          lesson_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          lesson_id: string
+          user_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          lesson_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_stats: {
+        Row: {
+          last_active_date: string | null
+          points: number
+          streak: number
+          user_name: string
+        }
+        Insert: {
+          last_active_date?: string | null
+          points?: number
+          streak?: number
+          user_name: string
+        }
+        Update: {
+          last_active_date?: string | null
+          points?: number
+          streak?: number
+          user_name?: string
         }
         Relationships: []
       }
