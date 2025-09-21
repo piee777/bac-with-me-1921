@@ -1,5 +1,5 @@
 import { GoogleGenAI, Content } from "@google/genai";
-import type { Handler } from "@netlify/functions";
+import type { Context } from "@netlify/functions";
 
 // System instructions define the AI's role and are kept securely on the server.
 const SYSTEM_INSTRUCTIONS: { [key: string]: string } = {
@@ -37,20 +37,24 @@ const sanitizeHistory = (history: any[]): Content[] => {
 
 /**
  * The Netlify Function handler. This is the secure endpoint that the client app calls.
+ * It now uses the modern Edge Function signature for proper streaming support.
  */
-export const handler: Handler = async (event) => {
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
+export default async (request: Request, context: Context): Promise<Response> => {
+    if (request.method !== 'POST') {
+        return new Response('Method Not Allowed', { status: 405 });
     }
 
     // Securely access the API key from environment variables on Netlify's server.
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-        return { statusCode: 500, body: JSON.stringify({ error: "API key is not configured on the server." }) };
+        return new Response(JSON.stringify({ error: "API key is not configured on the server." }), { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 
     try {
-        const { prompt, language = 'ar', image, history = [] } = JSON.parse(event.body || '{}');
+        const { prompt, language = 'ar', image, history = [] } = await request.json();
 
         const ai = new GoogleGenAI({ apiKey });
         
@@ -71,11 +75,12 @@ export const handler: Handler = async (event) => {
         }
 
         if (messagePayload.parts.length === 0) {
-             return { statusCode: 400, body: JSON.stringify({ error: "Empty prompt and no image provided." }) };
+             return new Response(JSON.stringify({ error: "Empty prompt and no image provided." }), {
+                 status: 400,
+                 headers: { 'Content-Type': 'application/json' }
+             });
         }
-
-        // FIX: The `message` property expects a `PartListUnion`, which can be an array of parts.
-        // Pass the `messagePayload.parts` array directly instead of the wrapping object.
+        
         const stream = await chat.sendMessageStream({ message: messagePayload.parts });
 
         // Create a streaming response to send back to the client.
@@ -94,21 +99,26 @@ export const handler: Handler = async (event) => {
             },
         });
 
-        return {
-            statusCode: 200,
+        return new Response(readableStream, {
+            status: 200,
             headers: {
                 "Content-Type": "text/event-stream",
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
             },
-            body: readableStream,
-        };
+        });
 
     } catch (error) {
         console.error("Error in Gemini proxy:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: error.message }),
-        };
+         if (error instanceof SyntaxError) {
+             return new Response(JSON.stringify({ error: "Invalid request body." }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 };
