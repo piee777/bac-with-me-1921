@@ -195,12 +195,7 @@ export const mockFlashcards: Flashcard[] = [
     { id: 'fc4', subject: 'الرياضيات', term: 'اللوغاريتم النيبيري (ln)', definition: 'هو اللوغاريتم للأساس e، وهو عكس الدالة الأسية e^x.'}
 ];
 
-export const mockLeaderboard: LeaderboardUser[] = [
-    { id: 'user1', name: 'سارة', avatarUrl: 'https://i.pravatar.cc/150?u=sarah', score: 2100, rank: 1 },
-    { id: 'user2', name: 'يوسف', avatarUrl: 'https://i.pravatar.cc/150?u=youssef', score: 1850, rank: 2 },
-    { id: 'user-me', name: 'عادل', avatarUrl: mockUser.avatarUrl, score: 1250, rank: 3 },
-    { id: 'user4', name: 'فاطمة', avatarUrl: 'https://i.pravatar.cc/150?u=fatima', score: 980, rank: 4 },
-];
+export const mockLeaderboard: LeaderboardUser[] = [];
 
 export const mockPastExams: PastExam[] = [
     { id: 'pe1', subjectId: 'math', subjectName: 'الرياضيات', year: 2023, topicUrl: '#', solutionUrl: '#' },
@@ -209,28 +204,4 @@ export const mockPastExams: PastExam[] = [
     { id: 'pe4', subjectId: 'science', subjectName: 'علوم الطبيعة والحياة', year: 2023, topicUrl: '#', solutionUrl: '#' },
 ];
 
-const mockAnswers: CommunityAnswer[] = [
-     { id: 'a1', author: 'أحمد', avatarUrl: 'https://i.pravatar.cc/150?u=ahmed', text: 'أعتقد أن الخطوة الأولى هي حساب المميز دلتا للمعادلة.', timestamp: 'منذ 5 دقائق' },
-     { id: 'a2', author: 'مريم', avatarUrl: 'https://i.pravatar.cc/150?u=mariam', text: 'صحيح، وبعدها نجد الجذرين التربيعيين لدلتا في مجموعة الأعداد المركبة.', timestamp: 'منذ دقيقتين' }
-];
-
-export const mockCommunityPosts: CommunityPost[] = [
-    {
-        id: 'post1',
-        author: 'خالد',
-        avatarUrl: 'https://i.pravatar.cc/150?u=khaled',
-        question: 'يا جماعة، كيف نحل معادلة من الدرجة الثانية في C (مجموعة الأعداد المركبة)؟ عندي تمرين ولم أفهم الطريقة.',
-        subject: 'الرياضيات',
-        timestamp: 'منذ 10 دقائق',
-        answers: mockAnswers,
-    },
-    {
-        id: 'post2',
-        author: 'ليلى',
-        avatarUrl: 'https://i.pravatar.cc/150?u=laila',
-        question: 'ما هو الفرق الأساسي بين الاستنساخ والترجمة في عملية تركيب البروتين؟ الأمر مختلط علي.',
-        subject: 'علوم الطبيعة والحياة',
-        timestamp: 'منذ ساعة',
-        answers: [],
-    }
-];
+export const mockCommunityPosts: CommunityPost[] = [];

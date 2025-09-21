@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { UserProfile, Subject, Exercise, Flashcard, LeaderboardUser, PastExam, CommunityPost, CommunityAnswer, Lesson, QuizQuestion, QuizOption } from '../types';
-import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { UserProfile, Subject, Exercise, Flashcard, LeaderboardUser, PastExam, CommunityPost, CommunityAnswer, Lesson, QuizQuestion, QuizOption, RealtimeChatMessage } from '../types';
+import { PostgrestSingleResponse, RealtimeChannel } from '@supabase/supabase-js';
 import { mockSubjects, mockDailyChallenge, mockFlashcards, mockLeaderboard, mockPastExams, mockCommunityPosts, avatars, academicStreams } from '../constants';
 
 
@@ -84,6 +84,14 @@ const transformAnswer = (answer: any): CommunityAnswer => ({
     avatarUrl: answer.avatar_url ?? `https://i.pravatar.cc/150?u=${answer.author}`,
     text: answer.text,
     timestamp: answer.created_at ? new Date(answer.created_at).toLocaleString('ar-DZ', { hour: 'numeric', minute: 'numeric' }) : 'الآن',
+});
+
+const transformChatMessage = (message: any): RealtimeChatMessage => ({
+    id: message.id,
+    createdAt: message.created_at,
+    userName: message.user_name,
+    avatarUrl: message.avatar_url ?? avatars[0],
+    content: message.content,
 });
 
 
@@ -304,7 +312,10 @@ export const fetchSubjects = async (): Promise<Subject[]> => {
         if (!subjectsData || subjectsData.length === 0) return mockSubjects;
 
         const { data: progressData } = progressRes;
-        const completedLessonIds = new Set(progressData?.map(p => p.lesson_id) || []);
+        // FIX: Explicitly typing `new Set` as `Set<string>` prevents TypeScript
+        // from inferring `Set<never>` when the initialization array is empty,
+        // which causes a type error on `.has()`.
+        const completedLessonIds = new Set<string>(progressData?.map(p => p.lesson_id) || []);
 
         const subjectsWithProgress = subjectsData.map(subject => ({
             ...subject,
@@ -493,4 +504,55 @@ export const addCommunityAnswer = async (postId: string, answerText: string): Pr
         throw new Error("فشل إضافة الإجابة بسبب خطأ في قاعدة البيانات.");
     }
     return transformAnswer(data);
+};
+
+// --- Live Chat Functions ---
+
+export const fetchChatMessages = async (): Promise<RealtimeChatMessage[]> => {
+    if (!isSupabaseConfigured) return [];
+    try {
+        const { data, error } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .order('created_at', { ascending: true })
+            .limit(100);
+        if (error) throw error;
+        return data.map(transformChatMessage);
+    } catch (err) {
+        console.error('API Error fetching chat messages:', err);
+        return [];
+    }
+};
+
+export const sendChatMessage = async (content: string): Promise<RealtimeChatMessage> => {
+    const userName = getUserName() || 'مجهول';
+    const avatarUrl = localStorage.getItem('userAvatarUrl') || avatars[0];
+
+    if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
+
+    const { data, error }: PostgrestSingleResponse<any> = await supabase
+        .from('chat_messages')
+        .insert({ content, user_name: userName, avatar_url: avatarUrl })
+        .select('*')
+        .single();
+    
+    if (error) {
+        console.error("Supabase error sending chat message:", error);
+        throw new Error("Failed to send message.");
+    }
+    return transformChatMessage(data);
+};
+
+export const subscribeToChatMessages = (onNewMessage: (message: RealtimeChatMessage) => void): RealtimeChannel => {
+    const channel = supabase.channel('public:chat_messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          onNewMessage(transformChatMessage(payload.new));
+        }
+      )
+      .subscribe();
+      
+    return channel;
 };
