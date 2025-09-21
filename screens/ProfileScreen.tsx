@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Badge } from '../types';
 import { fetchUserProfile } from '../services/api';
-import ProgressBar from '../components/ProgressBar';
+import CircularProgressBar from '../components/CircularProgressBar';
 
 const BadgeCard: React.FC<{badge: Badge}> = ({ badge }) => (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow flex items-center gap-4">
+    <div className="bg-white dark:bg-slate-800/50 p-4 rounded-xl shadow-md flex items-center gap-4">
         <span className="text-4xl">{badge.icon}</span>
         <div>
             <h4 className="font-bold text-slate-800 dark:text-white">{badge.name}</h4>
             <p className="text-sm text-slate-500 dark:text-slate-400">{badge.description}</p>
         </div>
+    </div>
+);
+
+const StatCard: React.FC<{icon: string, value: number | string, label: string, color: string}> = ({ icon, value, label, color }) => (
+    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full">
+        <div className={`text-3xl mb-2 ${color}`}>{icon}</div>
+        <div className="text-2xl font-bold text-slate-800 dark:text-white">{value}</div>
+        <div className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</div>
     </div>
 );
 
@@ -55,70 +63,63 @@ const ProfileScreen: React.FC = () => {
     }
 
     return (
-        <div className="p-6">
-            <div className="flex flex-col items-center mb-8">
-                <img src={user.avatarUrl} alt="User Avatar" className="w-28 h-28 rounded-full border-4 border-white dark:border-slate-700 shadow-xl mb-4" />
-                <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">{user.name}</h1>
+        <div className="p-6 space-y-8">
+            <div className="flex flex-col items-center">
+                <div className="relative">
+                    <img src={user.avatarUrl} alt="User Avatar" className="w-28 h-28 rounded-full border-4 border-white dark:border-slate-800 shadow-xl" />
+                    <span className="absolute bottom-0 right-0 bg-white dark:bg-slate-700 rounded-full p-1 shadow-md">
+                        🏆
+                    </span>
+                </div>
+                <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mt-4">{user.name}</h1>
                 <p className="text-teal-500 font-semibold bg-teal-50 dark:bg-teal-900/50 dark:text-teal-300 px-3 py-1 rounded-full mt-2">{user.stream}</p>
             </div>
 
-            <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg mb-8">
-                 <h2 className="text-xl font-bold mb-4 text-center">إحصائياتي</h2>
-                 <div className="flex items-center justify-around text-center">
-                    <div className="flex flex-col items-center">
-                        <span className="text-3xl font-bold text-amber-500">💎</span>
-                        <span className="text-lg font-bold">{user.points}</span>
-                        <span className="text-slate-500 dark:text-slate-400 text-sm">نقطة</span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                        <span className="text-3xl font-bold text-red-500">🔥</span>
-                        <span className="text-lg font-bold">{user.streak}</span>
-                        <span className="text-slate-500 dark:text-slate-400 text-sm">أيام متتالية</span>
-                    </div>
+            <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
+                 <h2 className="text-xl font-bold mb-4 text-center text-slate-800 dark:text-white">إحصائياتي</h2>
+                 <div className="grid grid-cols-2 gap-4 text-center">
+                    <StatCard icon="💎" value={user.points} label="نقطة" color="text-amber-500" />
+                    <StatCard icon="🔥" value={user.streak} label="أيام متتالية" color="text-red-500" />
                 </div>
             </section>
 
-             <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg mb-8">
-                <h2 className="text-xl font-bold mb-4">تقارير الأداء</h2>
-                <div className="space-y-4">
+             <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
+                <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">تقارير الأداء</h2>
+                <div className="space-y-6">
                     <div>
-                        <h3 className="font-bold text-green-600 dark:text-green-400 mb-2">✅ نقاط القوة</h3>
+                        <h3 className="font-bold text-slate-700 dark:text-slate-300 mb-2">ملخص الأداء</h3>
                         <div className="flex flex-wrap gap-2">
-                            {performance.strengths.map(s => <span key={s} className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 text-sm font-semibold px-3 py-1 rounded-full">{s}</span>)}
+                             {performance.strengths.map(s => <span key={s} className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 text-sm font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">✅ {s}</span>)}
+                             {performance.weaknesses.map(s => <span key={s} className="bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5">❌ {s}</span>)}
                         </div>
                     </div>
-                     <div>
-                        <h3 className="font-bold text-red-600 dark:text-red-400 mb-2">❌ نقاط الضعف</h3>
-                        <div className="flex flex-wrap gap-2">
-                            {performance.weaknesses.map(s => <span key={s} className="bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold px-3 py-1 rounded-full">{s}</span>)}
+                     <div className="space-y-4 pt-2">
+                        <h3 className="font-bold text-slate-700 dark:text-slate-300">نسبة الإنجاز</h3>
+                        <div className="grid grid-cols-3 gap-4">
+                             <div className="flex flex-col items-center">
+                                 <CircularProgressBar progress={performance.completion.math} size={80} strokeWidth={8} color="#3b82f6" />
+                                 <span className="text-sm font-semibold mt-2">الرياضيات</span>
+                             </div>
+                             <div className="flex flex-col items-center">
+                                 <CircularProgressBar progress={performance.completion.physics} size={80} strokeWidth={8} color="#8b5cf6" />
+                                  <span className="text-sm font-semibold mt-2">الفيزياء</span>
+                             </div>
+                             <div className="flex flex-col items-center">
+                                 <CircularProgressBar progress={performance.completion.science} size={80} strokeWidth={8} color="#22c55e" />
+                                 <span className="text-sm font-semibold mt-2">العلوم</span>
+                             </div>
                         </div>
                     </div>
-                     <div className="space-y-3 pt-2">
-                        <h3 className="font-bold text-slate-700 dark:text-slate-200">نسبة الإنجاز</h3>
-                        <div>
-                            <span className="text-sm font-semibold">الرياضيات</span>
-                            <ProgressBar value={performance.completion.math} color="bg-blue-500" />
-                        </div>
-                         <div>
-                            <span className="text-sm font-semibold">الفيزياء</span>
-                            <ProgressBar value={performance.completion.physics} color="bg-purple-500" />
-                        </div>
-                         <div>
-                            <span className="text-sm font-semibold">العلوم</span>
-                            <ProgressBar value={performance.completion.science} color="bg-green-500" />
-                        </div>
-                    </div>
-                    <button onClick={() => alert('سيتم ربط خطة المراجعة مع تقويم جوجل قريباً!')} className="w-full mt-4 bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M20.56,3.34a1,1,0,0,0-1,0L17.1,5.55A9,9,0,0,0,3,12a9.23,9.23,0,0,0,.5,3.23l-1.2,1.2A1,1,0,0,0,3,18.12l1.22-1.22A9,9,0,0,0,12,21a9,9,0,0,0,8.45-6.84l2.21,2.21a1,1,0,0,0,.71.29,1,1,0,0,0,.71-1.71ZM12,19a7,7,0,0,1-6.42-4.44l.2-.2a1,1,0,0,0,0-1.41l-1.1-1.1A7,7,0,0,1,12,5a7,7,0,0,1,6.85,5.55l-2.13,2.13A3,3,0,0,0,12,11a3,3,0,0,0-3,3,1,1,0,0,0,1,1H12a1,1,0,0,0,0-2h-.5A1,1,0,0,1,12,12a1,1,0,0,1,1-1,1,1,0,0,0,.71-.29l3.41-3.42A7,7,0,0,1,12,19Z"/></svg>
-                        مزامنة خطة المراجعة مع تقويم جوجل
-                    </button>
                 </div>
             </section>
             
             <section className="mb-8">
-                <h2 className="text-xl font-bold mb-4">شاراتي المكتسبة</h2>
+                <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">شاراتي المكتسبة</h2>
                 <div className="space-y-4">
-                    {user.badges.map(badge => <BadgeCard key={badge.id} badge={badge} />)}
+                    {user.badges.length > 0 ? 
+                        user.badges.map(badge => <BadgeCard key={badge.id} badge={badge} />) :
+                        <p className="text-center text-slate-500 dark:text-slate-400 py-4">لم تكتسب أي شارات بعد. أكمل الدروس والتحديات لتبدأ!</p>
+                    }
                 </div>
             </section>
         </div>

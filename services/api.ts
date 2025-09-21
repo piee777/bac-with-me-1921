@@ -30,17 +30,23 @@ const transformLesson = (lesson: any, subjectId: string): Lesson => ({
 });
 
 const transformExercise = (exercise: any): Exercise => {
-    const options: QuizOption[] = [];
-    if (exercise.type === 'mcq' && exercise.options && Array.isArray(exercise.options)) {
-        (exercise.options as string[]).forEach(opt => {
-            options.push({
-                text: opt,
-                is_correct: opt === exercise.correct_answer,
-            });
-        });
+    let options: QuizOption[] = [];
+    
+    // Check if options are already in the correct {text, is_correct} format
+    if (Array.isArray(exercise.options) && exercise.options.length > 0 && typeof exercise.options[0] === 'object' && exercise.options[0] !== null && 'text' in exercise.options[0] && 'is_correct' in exercise.options[0]) {
+        options = exercise.options;
+    } 
+    // Handle the database format: string array + correct_answer string
+    else if (exercise.type === 'mcq' && Array.isArray(exercise.options)) {
+        options = (exercise.options as string[]).map(optionText => ({
+            text: optionText,
+            is_correct: optionText === exercise.correct_answer,
+        }));
     } else if (exercise.type === 'true-false') {
-        options.push({ text: 'صحيح', is_correct: exercise.correct_answer === 'True' });
-        options.push({ text: 'خطأ', is_correct: exercise.correct_answer === 'False' });
+        options = [
+            { text: 'صحيح', is_correct: exercise.correct_answer === 'True' || exercise.correct_answer === 'صحيح' },
+            { text: 'خطأ', is_correct: exercise.correct_answer === 'False' || exercise.correct_answer === 'خطأ' }
+        ];
     }
 
     return {
@@ -118,15 +124,13 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
         if (activityType === 'POST') pointsToAdd = POINTS_CONFIG.COMMUNITY_POST;
 
         if (pointsToAdd > 0) {
-            // Non-RPC method to increment points: Read, then write.
-            // This is simpler and avoids needing a custom DB function.
             const { data: currentStats, error: fetchError } = await supabase
                 .from('user_stats')
                 .select('points')
                 .eq('user_name', userName)
                 .single();
 
-            if (fetchError) {
+            if (fetchError && fetchError.code !== 'PGRST116') {
                 console.error('Error fetching points before increment:', fetchError);
             } else {
                 const currentPoints = currentStats?.points || 0;
@@ -161,10 +165,7 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
             console.error('Error fetching progress for badge check');
             return;
         }
-
-        // FIX: Explicitly typing `new Set` as `Set<string>` prevents TypeScript
-        // from inferring `Set<never>` when the initialization array is empty,
-        // which causes a type error on `.has()`.
+        
         const awardedBadges = new Set<string>(userBadgesData?.map(b => b.badge_id) || []);
         const newBadgesToAward: { user_name: string; badge_id: string }[] = [];
 
@@ -176,7 +177,6 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
         if (activityType === 'POST' && !awardedBadges.has('community_starter') && (userPosts?.length || 0) >= 1) {
             newBadgesToAward.push({ user_name: userName, badge_id: 'community_starter' });
         }
-        // You can add more complex badge checks here (e.g., math_explorer_5)
         
         if (newBadgesToAward.length > 0) {
             const { error: awardError } = await supabase.from('user_badges').insert(newBadgesToAward);
@@ -211,9 +211,10 @@ export const upsertUserProfileAndStats = async (userName: string, avatarUrl: str
     return data;
 }
 
-// FIX: Added missing function `fetchPublicProfileByUsername` required by AuthScreen.tsx.
+// FIX: Added missing function to check if a user profile exists by username.
 export const fetchPublicProfileByUsername = async (username: string): Promise<{ avatarUrl: string } | null> => {
     if (!isSupabaseConfigured) {
+        // If Supabase is not configured, we cannot check. Assume username is available.
         return null;
     }
 
@@ -224,25 +225,24 @@ export const fetchPublicProfileByUsername = async (username: string): Promise<{ 
             .eq('name', username)
             .single();
 
-        if (error) {
-            if (error.code === 'PGRST116') { // This code means no rows were found, which is expected for a new user.
-                return null;
-            }
-            // For other database errors, log it but don't crash the signup flow.
-            console.error("Error fetching public profile:", error);
-            return null;
+        // "PGRST116" means no rows were found, which is the expected outcome for a new user.
+        if (error && error.code !== 'PGRST116') {
+            console.error('Error fetching public profile by username:', error);
+            throw error; // Throw other database errors
         }
 
-        // If a profile is found, return the avatar, using a default if it's not set.
         if (data) {
-             return { avatarUrl: data.avatar_url || avatars[0] };
+            // A profile was found, return its avatar URL.
+            return { avatarUrl: data.avatar_url || avatars[0] };
         }
-        
+
+        // No profile was found.
         return null;
 
     } catch (err) {
-        console.error("Exception fetching profile:", err);
-        return null; // Return null to allow signup to proceed
+        console.error('API Error in fetchPublicProfileByUsername:', err);
+        // In case of an unexpected exception, re-throw it to be handled by the caller.
+        throw err;
     }
 };
 
@@ -259,7 +259,6 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
         const userName = getUserName();
         if (!userName) throw new Error("User not set up.");
         
-        // Fetch stats and badges in parallel
         const [statsRes, badgesRes] = await Promise.all([
             supabase.from('user_stats').select('*').eq('user_name', userName).single(),
             supabase.from('user_badges').select('badges(*)').eq('user_name', userName)
@@ -267,17 +266,13 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
 
         let { data: stats, error: statsError } = statsRes;
         
-        if (statsError && statsError.code !== 'PGRST116') { // PGRST116 means no row was found
+        if (statsError && statsError.code !== 'PGRST116') {
             throw statsError;
         }
         
-        // If no stats are found, we don't create them here. We just use default values.
-        // The user must go through the setup screen to create their stats record.
-
         const { data: badgesData, error: badgesError } = badgesRes;
         if (badgesError) throw badgesError;
 
-        // Streak Logic
         const today = new Date();
         const lastActive = stats?.last_active_date ? new Date(stats.last_active_date) : null;
         let currentStreak = stats?.streak || 0;
@@ -289,14 +284,12 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
             if (diffDays === 1) {
                 currentStreak++;
             } else if (diffDays > 1) {
-                currentStreak = 1; // Reset streak
+                currentStreak = 1;
             }
-            // if diffDays is 0, do nothing.
-        } else if (stats) { // Only set streak to 1 if there's a stats record (i.e., it's their first day)
-             currentStreak = 1; // First activity
+        } else if (stats) {
+             currentStreak = 1;
         }
 
-        // Only update if there are stats and the day has changed.
         if (stats && (!lastActive || lastActive.toISOString().slice(0, 10) !== today.toISOString().slice(0, 10))) {
             await supabase.from('user_stats').update({
                 streak: currentStreak,
@@ -320,7 +313,6 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
         };
     } catch (e) {
         console.error('Failed to fetch real user profile:', e);
-        // Fallback to local data on error
         return { id: 'local-user', name, avatarUrl, stream, points: 0, streak: 0, badges: [] };
     }
 };
@@ -342,9 +334,6 @@ export const fetchSubjects = async (): Promise<Subject[]> => {
         if (!subjectsData || subjectsData.length === 0) return mockSubjects;
 
         const { data: progressData } = progressRes;
-        // FIX: Explicitly typing `new Set` as `Set<string>` prevents TypeScript
-        // from inferring `Set<never>` when the initialization array is empty,
-        // which causes a type error on `.has()`.
         const completedLessonIds = new Set<string>(progressData?.map(p => p.lesson_id) || []);
 
         const subjectsWithProgress = subjectsData.map(subject => ({
@@ -376,7 +365,6 @@ export const markLessonAsComplete = async (lessonId: string, subjectId: string):
         throw error;
     }
     
-    // Only handle activity if it's a new completion
     if (!error) {
         await _handleActivity('LESSON', { lessonId, subjectId });
     }
@@ -417,7 +405,6 @@ export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
     if (!isSupabaseConfigured) return mockLeaderboard;
 
     try {
-        // Fetch top 15 users directly from user_stats, which now contains all necessary info
         const { data: statsData, error: statsError } = await supabase
             .from('user_stats')
             .select('user_name, points, avatar_url')
@@ -427,11 +414,10 @@ export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
         if (statsError) throw statsError;
         if (!statsData || statsData.length === 0) return [];
 
-        // Transform the data into the LeaderboardUser format
         const leaderboardData: LeaderboardUser[] = statsData.map((stat, index) => ({
             id: stat.user_name,
             name: stat.user_name,
-            avatarUrl: stat.avatar_url || avatars[0], // Use saved avatar, fallback to default
+            avatarUrl: stat.avatar_url || avatars[0],
             score: stat.points || 0,
             rank: index + 1,
         }));

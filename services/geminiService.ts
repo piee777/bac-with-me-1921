@@ -140,14 +140,14 @@ async function* handleDirectExam(
     - "subject": (string) اسم المادة المستنتج من الموضوع.
     - "type": (string) بقيمة "mcq".
     
-    كل كائن في مصفوفة "options" يجب أن يحتوي على:
+    **مهم جداً:** كل كائن في مصفوفة "options" يجب أن يحتوي على مفتاحين بالضبط:
     - "text": (string) نص الخيار.
     - "is_correct": (boolean) تكون true لخيار واحد فقط، و false للآخرين.
 
     مثال على بنية سؤال واحد:
     { "question": "...", "options": [{ "text": "...", "is_correct": false }, { "text": "...", "is_correct": true }, { "text": "...", "is_correct": false }], "subject": "...", "type": "mcq" }
 
-    لا تقم بتضمين أي markdown formatting.`;
+    لا تقم بتضمين أي markdown formatting. الإجابة يجب أن تكون JSON نقي فقط.`;
     
     const stream = await ai.models.generateContentStream({
         model: "gemini-2.5-flash",

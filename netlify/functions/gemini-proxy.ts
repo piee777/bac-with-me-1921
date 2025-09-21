@@ -5,7 +5,7 @@ import type { Context } from "@netlify/functions";
 const createSystemInstruction = (userName: string, lang: string): string => {
     const instructions = {
         ar: `أنت مدرس ذكاء اصطناعي شخصي وخبير في منهج البكالوريا الجزائري. مهمتك هي مساعدة الطالب '${userName}'. تكيّف مع مستواه وقدّم شروحات بسيطة وواضحة. عند شرح التمارين، قدم الإجابة خطوة بخطوة. إذا رفع '${userName}' صورة، قم بتحليلها واشرح التمرين. كن محفزاً ومشجعاً دائماً. إذا لاحظت أنه يخطئ في موضوع معين، اقترح عليه بلطف دروساً أو تمارين إضافية لمراجعتها.`,
-        fr: `Tu es un tuteur IA personnel, expert du programme du baccalauréat algérien. Ton rôle est d'aider l'étudiant '${userName}'. Adapte-toi à son niveau et fournis des explications simples. Pour les exercices, explique la solution étape par étape. Si '${userName}' envoie une image, analyse-la. Sois motivant. Si tu remarques des erreurs récurrentes, suggère-lui gentiment de revoir certaines leçons.`,
+        fr: `Tu es un tuteur IA personnel, expert du programme du baccalauréat algérien. Ton rôle est d'aider l'étudiant '${userName}'. Adapte-toi à son niveau et fournis des explanations simples. Pour les exercices, explique la solution étape par étape. Si '${userName}' envoie une image, analyse-la. Sois motivant. Si tu remarques des erreurs récurrentes, suggère-lui gentiment de revoir certaines leçons.`,
         en: `You are a personal AI tutor, an expert in the Algerian baccalaureate curriculum. Your mission is to help the student '${userName}'. Adapt to his level and provide simple explanations. Explain exercises step-by-step. If '${userName}' uploads an image, analyze it. Be motivating. If you notice recurring mistakes on a topic, gently suggest specific lessons or exercises for him to review.`
     };
     return instructions[lang as keyof typeof instructions] || instructions['ar'];
@@ -87,14 +87,14 @@ const handleGenerateExam = async (ai: GoogleGenAI, body: any): Promise<Response>
     - "subject": (string) اسم المادة المستنتج من الموضوع.
     - "type": (string) بقيمة "mcq".
     
-    كل كائن في مصفوفة "options" يجب أن يحتوي على:
+    **مهم جداً:** كل كائن في مصفوفة "options" يجب أن يحتوي على مفتاحين بالضبط:
     - "text": (string) نص الخيار.
     - "is_correct": (boolean) تكون true لخيار واحد فقط، و false للآخرين.
 
     مثال على بنية سؤال واحد:
     { "question": "...", "options": [{ "text": "...", "is_correct": false }, { "text": "...", "is_correct": true }, { "text": "...", "is_correct": false }], "subject": "...", "type": "mcq" }
 
-    لا تقم بتضمين أي markdown formatting.`;
+    لا تقم بتضمين أي markdown formatting. الإجابة يجب أن تكون JSON نقي فقط.`;
 
     const stream = await ai.models.generateContentStream({
         model: "gemini-2.5-flash",

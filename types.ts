@@ -223,7 +223,7 @@ export interface Database {
         Row: {
           correct_answer: string
           id: string
-          options: string[] | null
+          options: Json | null // This is more robust; can be string[] or object[]
           question: string
           subject: string
           type: string
@@ -231,7 +231,7 @@ export interface Database {
         Insert: {
           correct_answer: string
           id: string
-          options?: string[] | null
+          options?: Json | null
           question: string
           subject: string
           type: string
@@ -239,7 +239,7 @@ export interface Database {
         Update: {
           correct_answer?: string
           id?: string
-          options?: string[] | null
+          options?: Json | null
           question?: string
           subject?: string
           type?: string

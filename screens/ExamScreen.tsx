@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchExamQuestions } from '../services/api';
-import { Exercise, Screen } from '../types';
+import { Exercise, Screen, QuizOption } from '../types';
 
 interface ExamScreenProps {
   setActiveScreen: (screen: Screen) => void;
