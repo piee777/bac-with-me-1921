@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { fetchSubjects } from '../services/api';
+import React, { useState } from 'react';
 import { generateStudyPlan } from '../services/geminiService';
-import { Screen, Subject } from '../types';
+import { Screen } from '../types';
+import { allBacSubjects } from '../constants';
 
 interface StudyPlanScreenProps {
   setActiveScreen: (screen: Screen) => void;
@@ -9,25 +9,16 @@ interface StudyPlanScreenProps {
 
 const StudyPlanScreen: React.FC<StudyPlanScreenProps> = ({ setActiveScreen }) => {
     const [step, setStep] = useState<'config' | 'generating' | 'results'>('config');
-    const [subjects, setSubjects] = useState<Subject[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     // Config state
     const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
     const [studyDays, setStudyDays] = useState<string[]>([]);
-    const [studyHours, setStudyHours] = useState('ساعتان');
+    const [studyHours, setStudyHours] = useState('2');
     const [goal, setGoal] = useState('');
 
     // Results state
     const [plan, setPlan] = useState('');
-
-    useEffect(() => {
-        const loadSubjects = async () => {
-            const subs = await fetchSubjects();
-            setSubjects(subs);
-        };
-        loadSubjects();
-    }, []);
 
     const handleSubjectToggle = (subjectName: string) => {
         setSelectedSubjects(prev => 
@@ -42,8 +33,8 @@ const StudyPlanScreen: React.FC<StudyPlanScreenProps> = ({ setActiveScreen }) =>
     };
 
     const handleGenerate = async () => {
-        if (selectedSubjects.length === 0 || studyDays.length === 0 || !goal) {
-            setError('يرجى ملء جميع الحقول المطلوبة.');
+        if (selectedSubjects.length === 0 || studyDays.length === 0 || !goal.trim() || !studyHours.trim() || parseInt(studyHours) <= 0) {
+            setError('يرجى ملء جميع الحقول بشكل صحيح.');
             return;
         }
         setError(null);
@@ -64,7 +55,6 @@ const StudyPlanScreen: React.FC<StudyPlanScreenProps> = ({ setActiveScreen }) =>
     
     const renderConfig = () => {
         const daysOfWeek = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
-        const hourOptions = ['ساعة واحدة', 'ساعتان', '3 ساعات', '4 ساعات'];
 
         return (
             <div className="p-6">
@@ -80,9 +70,9 @@ const StudyPlanScreen: React.FC<StudyPlanScreenProps> = ({ setActiveScreen }) =>
                     <div>
                         <label className="font-bold block mb-2">ما هي المواد التي تريد التركيز عليها؟</label>
                         <div className="flex flex-wrap gap-2">
-                            {subjects.map(s => (
-                                <button key={s.id} onClick={() => handleSubjectToggle(s.name)} className={`px-4 py-2 rounded-full font-semibold text-sm ${selectedSubjects.includes(s.name) ? 'bg-teal-500 text-white' : 'bg-slate-200 dark:bg-slate-700'}`}>
-                                    {s.name}
+                            {allBacSubjects.map(s => (
+                                <button key={s} onClick={() => handleSubjectToggle(s)} className={`px-4 py-2 rounded-full font-semibold text-sm ${selectedSubjects.includes(s) ? 'bg-teal-500 text-white' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                                    {s}
                                 </button>
                             ))}
                         </div>
@@ -98,10 +88,17 @@ const StudyPlanScreen: React.FC<StudyPlanScreenProps> = ({ setActiveScreen }) =>
                         </div>
                     </div>
                     <div>
-                        <label className="font-bold block mb-2">كم ساعة يمكنك المراجعة يومياً؟</label>
-                         <select value={studyHours} onChange={e => setStudyHours(e.target.value)} className="w-full p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
-                            {hourOptions.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
+                        <label htmlFor="study-hours" className="font-bold block mb-2">كم ساعة يمكنك المراجعة يومياً؟</label>
+                         <input
+                            id="study-hours"
+                            type="number"
+                            value={studyHours}
+                            onChange={e => setStudyHours(e.target.value)}
+                            min="1"
+                            max="12"
+                            placeholder="مثال: 3"
+                            className="w-full p-3 bg-slate-100 dark:bg-slate-700 rounded-lg border-transparent focus:outline-none focus:ring-2 focus:ring-teal-500"
+                         />
                     </div>
                      <div>
                         <label className="font-bold block mb-2">ما هو هدفك الأساسي؟</label>

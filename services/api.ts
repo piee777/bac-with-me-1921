@@ -118,11 +118,27 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
         if (activityType === 'POST') pointsToAdd = POINTS_CONFIG.COMMUNITY_POST;
 
         if (pointsToAdd > 0) {
-            const { error: pointsError } = await supabase.rpc('increment_points', {
-                user_name_param: userName,
-                points_to_add: pointsToAdd
-            });
-            if (pointsError) console.error('Error incrementing points:', pointsError);
+            // Non-RPC method to increment points: Read, then write.
+            // This is simpler and avoids needing a custom DB function.
+            const { data: currentStats, error: fetchError } = await supabase
+                .from('user_stats')
+                .select('points')
+                .eq('user_name', userName)
+                .single();
+
+            if (fetchError) {
+                console.error('Error fetching points before increment:', fetchError);
+            } else {
+                const currentPoints = currentStats?.points || 0;
+                const { error: updateError } = await supabase
+                    .from('user_stats')
+                    .update({ points: currentPoints + pointsToAdd })
+                    .eq('user_name', userName);
+
+                if (updateError) {
+                    console.error('Error updating points:', updateError);
+                }
+            }
         }
 
         // 2. Check for badges
@@ -172,14 +188,28 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
     }
 };
 
-export const createUserStats = async (userName: string): Promise<any> => {
+export const upsertUserProfileAndStats = async (userName: string, avatarUrl: string, stream: string) => {
     if (!isSupabaseConfigured) return;
-    const { data, error } = await supabase.from('user_stats').insert({ user_name: userName, last_active_date: new Date().toISOString().slice(0, 10) });
-    if (error && error.code !== '23505') { // Ignore if user already exists
-        console.error('Failed to create user stats:', error);
+
+    const { data, error } = await supabase.from('user_stats').upsert(
+        { 
+            user_name: userName, 
+            avatar_url: avatarUrl,
+            stream: stream,
+            last_active_date: new Date().toISOString().slice(0, 10)
+        }, 
+        { 
+            onConflict: 'user_name',
+        }
+    );
+
+    if (error) {
+        console.error('Failed to upsert user profile stats:', error);
+        throw error;
     }
+
     return data;
-};
+}
 
 // FIX: Added missing function `fetchPublicProfileByUsername` required by AuthScreen.tsx.
 export const fetchPublicProfileByUsername = async (username: string): Promise<{ avatarUrl: string } | null> => {
@@ -236,14 +266,13 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
         ]);
 
         let { data: stats, error: statsError } = statsRes;
-        if (statsError && statsError.code === 'PGRST116') { // If no stats found, create them
-            await createUserStats(userName);
-            const { data: newStats, error: newStatsError } = await supabase.from('user_stats').select('*').eq('user_name', userName).single();
-            if(newStatsError) throw newStatsError;
-            stats = newStats;
-        } else if (statsError) {
+        
+        if (statsError && statsError.code !== 'PGRST116') { // PGRST116 means no row was found
             throw statsError;
         }
+        
+        // If no stats are found, we don't create them here. We just use default values.
+        // The user must go through the setup screen to create their stats record.
 
         const { data: badgesData, error: badgesError } = badgesRes;
         if (badgesError) throw badgesError;
@@ -263,11 +292,12 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
                 currentStreak = 1; // Reset streak
             }
             // if diffDays is 0, do nothing.
-        } else {
+        } else if (stats) { // Only set streak to 1 if there's a stats record (i.e., it's their first day)
              currentStreak = 1; // First activity
         }
 
-        if (!lastActive || lastActive.toISOString().slice(0, 10) !== today.toISOString().slice(0, 10)) {
+        // Only update if there are stats and the day has changed.
+        if (stats && (!lastActive || lastActive.toISOString().slice(0, 10) !== today.toISOString().slice(0, 10))) {
             await supabase.from('user_stats').update({
                 streak: currentStreak,
                 last_active_date: today.toISOString().slice(0, 10)
@@ -387,35 +417,21 @@ export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
     if (!isSupabaseConfigured) return mockLeaderboard;
 
     try {
-        // Fetch top 15 users from user_stats ordered by points
+        // Fetch top 15 users directly from user_stats, which now contains all necessary info
         const { data: statsData, error: statsError } = await supabase
             .from('user_stats')
-            .select('user_name, points')
+            .select('user_name, points, avatar_url')
             .order('points', { ascending: false })
             .limit(15);
 
         if (statsError) throw statsError;
         if (!statsData || statsData.length === 0) return [];
 
-        // Get the list of usernames to fetch profiles for
-        const userNames = statsData.map(s => s.user_name);
-
-        // Fetch profiles for these users
-        const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('name, avatar_url')
-            .in('name', userNames);
-
-        if (profilesError) throw profilesError;
-
-        // Create a map for easy lookup of avatar URLs
-        const profilesMap = new Map(profilesData?.map(p => [p.name, p.avatar_url]));
-
-        // Combine stats and profile data
+        // Transform the data into the LeaderboardUser format
         const leaderboardData: LeaderboardUser[] = statsData.map((stat, index) => ({
             id: stat.user_name,
             name: stat.user_name,
-            avatarUrl: profilesMap.get(stat.user_name) || avatars[0], // Fallback to a default avatar
+            avatarUrl: stat.avatar_url || avatars[0], // Use saved avatar, fallback to default
             score: stat.points || 0,
             rank: index + 1,
         }));
@@ -424,7 +440,7 @@ export const fetchLeaderboard = async (): Promise<LeaderboardUser[]> => {
 
     } catch (err) {
         console.error('API Error fetching leaderboard:', err);
-        return mockLeaderboard; // Fallback to mock data on any error
+        return mockLeaderboard;
     }
 };
 

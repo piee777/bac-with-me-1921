@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { academicStreams } from '../constants';
-import { createUserStats } from '../services/api';
+import { upsertUserProfileAndStats } from '../services/api';
 
 interface SetupScreenProps {
   onSetupComplete: () => void;
@@ -72,18 +72,18 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onSetupComplete }) => {
         setLoading(true);
         setError(null); // Clear error on successful start
         
-        // Save user details to localStorage
+        // Save user details to localStorage first for immediate UI update
         localStorage.setItem('userName', trimmedName);
         localStorage.setItem('userStream', selectedStream);
         localStorage.setItem('userAvatarUrl', selectedAvatar);
         localStorage.setItem('isSetupComplete', 'true');
         
-        // Initialize user stats in the backend
+        // Then, save the complete profile to the backend
         try {
-            await createUserStats(trimmedName);
+            await upsertUserProfileAndStats(trimmedName, selectedAvatar, selectedStream);
         } catch (e) {
             // Log the error but continue, as the app can function with local data as a fallback.
-            console.error("Failed to initialize user stats in the backend:", e);
+            console.error("Failed to save user profile to backend:", e);
         }
 
         // Trigger the app to switch to the main view

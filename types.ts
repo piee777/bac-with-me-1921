@@ -506,20 +506,26 @@ export interface Database {
       }
       user_stats: {
         Row: {
+          avatar_url: string | null
           last_active_date: string | null
           points: number
+          stream: string | null
           streak: number
           user_name: string
         }
         Insert: {
+          avatar_url?: string | null
           last_active_date?: string | null
           points?: number
+          stream?: string | null
           streak?: number
           user_name: string
         }
         Update: {
+          avatar_url?: string | null
           last_active_date?: string | null
           points?: number
+          stream?: string | null
           streak?: number
           user_name?: string
         }

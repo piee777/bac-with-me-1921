@@ -62,8 +62,15 @@ const ExamGeneratorScreen: React.FC<ExamGeneratorScreenProps> = ({ setActiveScre
             const cleanedJson = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             const result = JSON.parse(cleanedJson);
 
-            if (result && result.exam) {
-                 const formattedExam: Exercise[] = result.exam.map((q: any, index: number): Exercise => ({
+            let examData;
+            if (Array.isArray(result)) {
+                examData = result; // AI returned an array directly
+            } else if (result && Array.isArray(result.exam)) {
+                examData = result.exam; // AI returned the expected object
+            }
+
+            if (examData) {
+                 const formattedExam: Exercise[] = examData.map((q: any, index: number): Exercise => ({
                     id: `gen-${index}`,
                     question: q.question || 'Missing question',
                     subject: q.subject || 'General',
