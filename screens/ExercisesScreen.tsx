@@ -1,151 +1,220 @@
-import React, { useState, useEffect } from 'react';
-import { fetchDailyChallenge, recordExerciseResult } from '../services/api';
-import { Exercise, QuizOption } from '../types';
-import ProgressBar from '../components/ProgressBar';
+import React, { useState, useEffect, useRef } from 'react';
+import { Challenge, ChallengeLobby, ChallengeParticipant, Exercise } from '../types';
+import * as api from '../services/api';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
-const ExercisesScreen: React.FC = () => {
-    const [challenge, setChallenge] = useState<Exercise[]>([]);
+const ChallengesScreen: React.FC = () => {
+    const [view, setView] = useState<'list' | 'lobby' | 'playing' | 'results'>('list');
+    const [challenges, setChallenges] = useState<Challenge[]>([]);
+    const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+    const [lobby, setLobby] = useState<ChallengeLobby | null>(null);
+    const [participants, setParticipants] = useState<ChallengeParticipant[]>([]);
+    const [questions, setQuestions] = useState<Exercise[]>([]);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+    const [score, setScore] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [results, setResults] = useState<ChallengeParticipant[]>([]);
+    
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [selectedOption, setSelectedOption] = useState<QuizOption | null>(null);
-    const [correctAnswers, setCorrectAnswers] = useState(0);
-    const [submitted, setSubmitted] = useState<boolean>(false);
-    const [isFinished, setIsFinished] = useState(false);
     
-    const loadChallenge = async () => {
+    const channelRef = useRef<RealtimeChannel | null>(null);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const currentUsername = localStorage.getItem('userName');
+    
+    const cleanup = () => {
+        if (channelRef.current) {
+            channelRef.current.unsubscribe();
+            channelRef.current = null;
+        }
+        if(timerRef.current) clearInterval(timerRef.current);
+    };
+
+    useEffect(() => {
+        return () => cleanup(); // Cleanup on unmount
+    }, []);
+
+    const loadChallenges = async () => {
         try {
             setLoading(true);
-            setIsFinished(false);
-            setChallenge(await fetchDailyChallenge());
-            setCurrentQuestionIndex(0);
-            setCorrectAnswers(0);
-            setSelectedOption(null);
-            setSubmitted(false);
-            setError(null);
+            const data = await api.fetchChallenges();
+            setChallenges(data);
         } catch (err) {
-            setError("Failed to load a new challenge.");
-            console.error(err);
+            setError('فشل تحميل التحديات.');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        loadChallenge();
-    }, []);
+        if(view === 'list') {
+            cleanup();
+            loadChallenges();
+        }
+    }, [view]);
+
+    const handleSelectChallenge = async (challenge: Challenge) => {
+        setSelectedChallenge(challenge);
+        try {
+            const newLobby = await api.createChallengeLobby(challenge.id);
+            setLobby(newLobby);
+            subscribeToLobby(newLobby.id);
+            setView('lobby');
+        } catch (err) {
+            setError('فشل في إنشاء غرفة التحدي.');
+        }
+    };
+
+    const subscribeToLobby = (lobbyId: string) => {
+        const channel = api.subscribeToLobby(
+            lobbyId,
+            (newParticipants) => setParticipants(newParticipants),
+            async (status) => {
+                if (status === 'running') {
+                    const challenge = selectedChallenge!;
+                    const fetchedQuestions = await api.fetchChallengeExercises(challenge.subject_id, challenge.question_count);
+                    setQuestions(fetchedQuestions);
+                    setTimeLeft(challenge.time_limit_seconds);
+                    setView('playing');
+                } else if (status === 'finished') {
+                    const finalResults = await api.fetchChallengeResults(lobbyId);
+                    setResults(finalResults);
+                    setView('results');
+                }
+            }
+        );
+        channelRef.current = channel;
+    };
+    
+    const handleStartGame = () => {
+        if (lobby && channelRef.current) {
+            api.updateLobbyStatus(channelRef.current, 'running');
+        }
+    };
 
     useEffect(() => {
-        if (currentQuestionIndex >= challenge.length && challenge.length > 0) {
-            setIsFinished(true);
-            recordExerciseResult(correctAnswers);
+        if (view === 'playing' && timeLeft > 0) {
+            timerRef.current = setInterval(() => {
+                setTimeLeft(prev => prev - 1);
+            }, 1000);
+        } else if (view === 'playing' && timeLeft === 0) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            finishChallenge();
         }
-    }, [currentQuestionIndex, challenge, correctAnswers]);
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [view, timeLeft]);
 
-    if (loading) {
-        return <div className="p-6 h-screen flex justify-center items-center">Loading Daily Challenge...</div>;
-    }
-
-    if (error) {
-        return <div className="p-6 h-screen flex flex-col justify-center items-center text-center">
-            <p className="text-red-500 mb-4">{error}</p>
-            <button onClick={loadChallenge} className="bg-slate-800 text-white font-bold p-4 rounded-xl">Try Again</button>
-        </div>;
-    }
-
-    const currentQuestion = challenge[currentQuestionIndex];
-    
-    const handleOptionSelect = (option: QuizOption) => {
-        if (submitted) return;
-        setSelectedOption(option);
-    };
-
-    const handleSubmit = () => {
-        if (!selectedOption) return;
-        setSubmitted(true);
-        if (selectedOption.is_correct) {
-            setCorrectAnswers(prev => prev + 1);
+    const handleAnswer = (isCorrect: boolean) => {
+        if (isCorrect) {
+            setScore(prev => prev + 1);
+        }
+        if (currentQuestionIndex < questions.length - 1) {
+            setCurrentQuestionIndex(prev => prev + 1);
+        } else {
+            finishChallenge();
         }
     };
     
-    const handleNext = () => {
-        setSelectedOption(null);
-        setSubmitted(false);
-        setCurrentQuestionIndex(prev => prev + 1);
+    const finishChallenge = async () => {
+        if (view !== 'playing' || !lobby) return;
+        if (timerRef.current) clearInterval(timerRef.current);
+        const finishTime = selectedChallenge!.time_limit_seconds - timeLeft;
+        await api.submitChallengeResult(lobby.id, score, finishTime);
+        api.updateLobbyStatus(channelRef.current, 'finished');
     };
     
-    const getButtonClass = (option: QuizOption) => {
-        if (!submitted) {
-            return selectedOption?.text === option.text
-                ? 'bg-teal-500 text-white border-teal-500' 
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400';
-        }
-        if (option.is_correct) {
-            return 'bg-green-500 text-white border-green-500';
-        }
-        if (selectedOption?.text === option.text && !option.is_correct) {
-            return 'bg-red-500 text-white border-red-500';
-        }
-        return 'bg-white dark:bg-slate-800 opacity-60 border-slate-200 dark:border-slate-700';
-    };
-
-    if (isFinished) {
-        return (
-             <div className="p-6 h-screen flex flex-col items-center justify-center text-center">
-                 <div className="text-6xl mb-4">🎉</div>
-                <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-2">أحسنت!</h1>
-                <p className="text-slate-500 dark:text-slate-400 text-lg mb-6">
-                    لقد أكملت التحدي اليومي بنجاح.
-                </p>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-sm">
-                    <p className="text-xl font-bold">نتيجتك</p>
-                    <p className="text-5xl font-extrabold text-teal-500 my-4">
-                        {correctAnswers} <span className="text-3xl text-slate-500 dark:text-slate-400">/ {challenge.length}</span>
-                    </p>
-                    <button onClick={loadChallenge} className="w-full bg-slate-800 dark:bg-slate-700 text-white font-bold p-4 rounded-xl shadow-md hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">
-                        تحدٍ جديد
-                    </button>
-                </div>
-            </div>
-        )
-    }
-
-    return (
+    const renderList = () => (
         <div className="p-6">
-            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-2">التحدي اليومي</h1>
-            <ProgressBar value={((currentQuestionIndex) / challenge.length) * 100} color="bg-yellow-400" height="h-2"/>
-            <p className="text-slate-500 dark:text-slate-400 my-4">السؤال {currentQuestionIndex + 1} من {challenge.length}</p>
-
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-6 text-center h-20 flex items-center justify-center">{currentQuestion.question}</h2>
-                <div className="space-y-4">
-                    {currentQuestion.options.map((option) => (
-                        <button key={option.text} onClick={() => handleOptionSelect(option)} className={`w-full text-lg font-semibold p-4 rounded-xl border-2 transition-all duration-200 ${getButtonClass(option)}`} disabled={submitted}>
-                            {option.text}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mt-8 h-28">
-                { submitted && (
-                    <div className="text-center p-4 rounded-lg mb-4 flex flex-col justify-center h-full">
-                        <p className={`text-xl font-bold mb-4 ${selectedOption?.is_correct ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                           {selectedOption?.is_correct ? 'إجابة صحيحة!' : 'إجابة خاطئة.'}
-                        </p>
-                         <button onClick={handleNext} className="w-full bg-slate-800 dark:bg-slate-700 text-white font-bold p-4 rounded-xl shadow-md hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">
-                            التالي
-                        </button>
-                    </div>
-                )}
-                { !submitted && (
-                     <button onClick={handleSubmit} disabled={!selectedOption} className="w-full bg-blue-600 text-white font-bold p-4 rounded-xl shadow-md hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors">
-                        تأكيد الإجابة
+            <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-6">🏆 التحديات</h1>
+            {loading && <p>جاري تحميل التحديات...</p>}
+            {error && <p className="text-red-500">{error}</p>}
+            <div className="space-y-4">
+                {challenges.map(c => (
+                    <button key={c.id} onClick={() => handleSelectChallenge(c)} className="w-full text-right bg-white dark:bg-slate-800 p-5 rounded-xl shadow hover:shadow-lg transition-shadow">
+                        <h2 className="font-bold text-lg text-teal-600 dark:text-teal-400">{c.title}</h2>
+                        <p className="text-slate-500 dark:text-slate-400">{c.description}</p>
+                        <div className="text-sm mt-2 text-slate-400">{c.question_count} أسئلة - {c.time_limit_seconds / 60} دقائق</div>
                     </button>
-                )}
-                </div>
+                ))}
             </div>
         </div>
     );
+    
+    const renderLobby = () => (
+        <div className="p-6 text-center">
+            <h1 className="text-2xl font-bold mb-2">{selectedChallenge?.title}</h1>
+            <p className="text-slate-500 mb-6">في انتظار انضمام اللاعبين...</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 min-h-[100px]">
+                {participants.map(p => (
+                    <div key={p.user_name} className="flex flex-col items-center animate-fade-in">
+                        <img src={p.avatar_url} className="w-16 h-16 rounded-full border-2 border-teal-400" />
+                        <span className="font-semibold mt-2">{p.user_name}</span>
+                    </div>
+                ))}
+            </div>
+            {lobby?.host_username === currentUsername && (
+                <button onClick={handleStartGame} className="mt-8 bg-green-500 text-white font-bold py-3 px-8 rounded-lg shadow-lg">
+                    ابدأ التحدي
+                </button>
+            )}
+             <button onClick={() => setView('list')} className="mt-4 text-slate-500">العودة</button>
+        </div>
+    );
+
+    const renderPlaying = () => {
+        const question = questions[currentQuestionIndex];
+        return (
+            <div className="p-6">
+                 <div className="flex justify-between items-center mb-4">
+                    <span className="font-bold">السؤال {currentQuestionIndex + 1}/{questions.length}</span>
+                    <span className="font-bold text-red-500">{Math.floor(timeLeft/60)}:{('0' + timeLeft%60).slice(-2)}</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mb-8">
+                     <div className="bg-teal-500 h-2.5 rounded-full" style={{width: `${((currentQuestionIndex + 1)/questions.length)*100}%`}}></div>
+                </div>
+                <h2 className="text-xl font-bold mb-6 text-center">{question.question}</h2>
+                <div className="space-y-4">
+                    {question.options.map(opt => (
+                        <button key={opt.text} onClick={() => handleAnswer(opt.is_correct)} className="w-full text-lg font-semibold p-4 rounded-xl border-2 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-teal-400">
+                            {opt.text}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const renderResults = () => {
+        const sortedResults = [...results].sort((a, b) => b.score - a.score || (a.finish_time_seconds ?? 999) - (b.finish_time_seconds ?? 999));
+        return (
+            <div className="p-6 text-center">
+                <h1 className="text-3xl font-extrabold mb-4">✨ انتهى التحدي!</h1>
+                <div className="space-y-3">
+                    {sortedResults.map((res, index) => (
+                        <div key={res.user_name} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-lg shadow-md">
+                            <span className="font-bold text-lg w-8">{index === 0 ? '🏆' : index + 1}</span>
+                            <img src={res.avatar_url} className="w-12 h-12 rounded-full" />
+                            <span className="font-semibold flex-1 text-right">{res.user_name}</span>
+                            <span className="font-bold text-amber-500">{res.score} pts</span>
+                        </div>
+                    ))}
+                </div>
+                 <button onClick={() => setView('list')} className="mt-8 bg-slate-800 text-white font-bold py-3 px-8 rounded-lg shadow-lg">
+                    العودة للتحديات
+                </button>
+            </div>
+        )
+    };
+    
+    switch (view) {
+        case 'lobby': return renderLobby();
+        case 'playing': return renderPlaying();
+        case 'results': return renderResults();
+        case 'list':
+        default: return renderList();
+    }
 };
 
-export default ExercisesScreen;
+export default ChallengesScreen;

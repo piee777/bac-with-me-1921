@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { UserProfile, Subject, Exercise, Flashcard, LeaderboardUser, PastExam, CommunityPost, CommunityAnswer, Lesson, QuizQuestion, QuizOption, RealtimeChatMessage } from '../types';
+import { UserProfile, Subject, Exercise, Flashcard, LeaderboardUser, PastExam, CommunityPost, CommunityAnswer, Lesson, QuizQuestion, QuizOption, RealtimeChatMessage, Challenge, ChallengeLobby, ChallengeParticipant } from '../types';
 import { PostgrestSingleResponse, RealtimeChannel } from '@supabase/supabase-js';
 import { mockSubjects, mockDailyChallenge, mockFlashcards, mockLeaderboard, mockPastExams, mockCommunityPosts, avatars, academicStreams } from '../constants';
 
@@ -100,6 +100,14 @@ const transformChatMessage = (message: any): RealtimeChatMessage => ({
     content: message.content,
 });
 
+const transformChallenge = (challenge: any): Challenge => ({
+    id: challenge.id,
+    title: challenge.title,
+    description: challenge.description,
+    subject_id: challenge.subject_id,
+    question_count: challenge.question_count,
+    time_limit_seconds: challenge.time_limit_seconds,
+});
 
 // --- NEW REAL PROGRESSION SYSTEM ---
 
@@ -109,10 +117,11 @@ const POINTS_CONFIG = {
     LESSON_COMPLETE: 10,
     EXERCISE_CORRECT: 5,
     COMMUNITY_POST: 15,
+    CHALLENGE_WIN: 25,
 };
 
 // This central function handles all rewards and badge checks
-const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', details: any) => {
+const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST' | 'CHALLENGE', details: any) => {
     const userName = getUserName();
     if (!userName || !isSupabaseConfigured) return;
 
@@ -122,6 +131,8 @@ const _handleActivity = async (activityType: 'LESSON' | 'EXERCISE' | 'POST', det
         if (activityType === 'LESSON') pointsToAdd = POINTS_CONFIG.LESSON_COMPLETE;
         if (activityType === 'EXERCISE') pointsToAdd = POINTS_CONFIG.EXERCISE_CORRECT * (details.correctCount || 0);
         if (activityType === 'POST') pointsToAdd = POINTS_CONFIG.COMMUNITY_POST;
+        if (activityType === 'CHALLENGE') pointsToAdd = POINTS_CONFIG.CHALLENGE_WIN;
+
 
         if (pointsToAdd > 0) {
             const { data: currentStats, error: fetchError } = await supabase
@@ -375,9 +386,148 @@ export const recordExerciseResult = async (correctCount: number): Promise<void> 
     await _handleActivity('EXERCISE', { correctCount });
 };
 
+// --- Gamification / Challenges API ---
+
+export const fetchChallenges = async (): Promise<Challenge[]> => {
+    if (!isSupabaseConfigured) return [];
+    try {
+        const { data, error } = await supabase.from('challenges').select('*');
+        if (error) throw error;
+        return data.map(transformChallenge);
+    } catch (err) {
+        console.error('API Error fetching challenges:', err);
+        return [];
+    }
+};
+
+export const fetchChallengeExercises = async (subjectId: string, count: number): Promise<Exercise[]> => {
+    if (!isSupabaseConfigured) return mockDailyChallenge.slice(0, count);
+    try {
+        const { data, error } = await supabase
+            .from('exercises')
+            .select('*')
+            .eq('subject', subjectId)
+            .limit(count); // In a real app, you might want to randomize this with a function
+        if (error) throw error;
+        return data.map(transformExercise);
+    } catch (err) {
+        console.error('API Error fetching challenge exercises:', err);
+        return mockDailyChallenge.slice(0, count);
+    }
+};
+
+export const createChallengeLobby = async (challengeId: string): Promise<ChallengeLobby> => {
+    const hostUsername = getUserName();
+    if (!hostUsername || !isSupabaseConfigured) throw new Error("User not identified.");
+    const { data, error } = await supabase
+        .from('challenge_lobbies')
+        .insert({ challenge_id: challengeId, host_username: hostUsername })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ChallengeLobby;
+};
+
+export const subscribeToLobby = (
+    lobbyId: string,
+    onParticipantsChange: (participants: ChallengeParticipant[]) => void,
+    onLobbyStatusChange: (status: 'waiting' | 'running' | 'finished') => void
+): RealtimeChannel => {
+
+    const channel = supabase.channel(`challenge-lobby-${lobbyId}`);
+    
+    const presence = channel.on('presence', { event: 'sync' }, () => {
+        const presenceState = channel.presenceState();
+        const participants = Object.values(presenceState)
+            .map((p: any) => p[0])
+            .map((p: any) => ({
+                user_name: p.user_name,
+                avatar_url: p.avatar_url,
+                score: 0, // Initial score
+            }));
+        onParticipantsChange(participants);
+    });
+
+    const broadcast = channel.on('broadcast', { event: 'status_update' }, (payload) => {
+        onLobbyStatusChange(payload.payload.status);
+    });
+
+    channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+            const userName = getUserName();
+            const avatarUrl = localStorage.getItem('userAvatarUrl');
+            await channel.track({ user_name: userName, avatar_url: avatarUrl });
+        }
+    });
+
+    return channel;
+};
+
+export const updateLobbyStatus = (channel: RealtimeChannel | null, status: 'running' | 'finished') => {
+    channel?.send({
+        type: 'broadcast',
+        event: 'status_update',
+        payload: { status },
+    });
+};
+
+export const submitChallengeResult = async (lobbyId: string, score: number, time: number) => {
+    const userName = getUserName();
+    if (!userName || !isSupabaseConfigured) return;
+
+    await supabase.from('challenge_participants').insert({
+        lobby_id: lobbyId,
+        user_name: userName,
+        score,
+        finish_time_seconds: time,
+    });
+    
+    // Award points for winning
+    await _handleActivity('CHALLENGE', { score });
+};
+
+export const fetchChallengeResults = async (lobbyId: string): Promise<ChallengeParticipant[]> => {
+    if (!isSupabaseConfigured) return [];
+    
+    const { data, error } = await supabase
+        .from('challenge_participants')
+        .select('*')
+        .eq('lobby_id', lobbyId)
+        .order('score', { ascending: false })
+        .order('finish_time_seconds', { ascending: true });
+        
+    if (error) throw error;
+    
+    // We need to fetch avatars for the results
+    const userNames = data.map(p => p.user_name);
+    const { data: statsData, error: statsError } = await supabase
+        .from('user_stats')
+        .select('user_name, avatar_url')
+        .in('user_name', userNames);
+
+    if (statsError) {
+        console.error("Could not fetch avatars for results", statsError);
+        // FIX: The original `data` from `challenge_participants` lacks the `avatar_url` required by `ChallengeParticipant`. Map the data to include a default avatar.
+        return data.map(p => ({
+            ...p,
+            avatar_url: avatars[0]
+        }));
+    }
+    
+    const avatarMap = new Map(statsData.map(s => [s.user_name, s.avatar_url]));
+
+    return data.map(p => ({
+        ...p,
+        avatar_url: avatarMap.get(p.user_name) || avatars[0]
+    }));
+};
+
+
+// FIX: Added the missing `fetchDailyChallenge` function, which is called by `fetchExamQuestions`.
 export const fetchDailyChallenge = async (): Promise<Exercise[]> => {
     if (!isSupabaseConfigured) return mockDailyChallenge;
     try {
+        // In a real app, this should probably fetch random questions or questions of the day
         const { data, error } = await supabase.from('exercises').select('*').limit(5);
         if (error) throw error;
         return data?.length > 0 ? data.map(transformExercise) : mockDailyChallenge;

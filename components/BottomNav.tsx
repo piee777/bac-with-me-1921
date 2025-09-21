@@ -2,7 +2,7 @@ import React from 'react';
 import { Screen } from '../types';
 import HomeIcon from './icons/HomeIcon';
 import LessonsIcon from './icons/LessonsIcon';
-import ExercisesIcon from './icons/ExercisesIcon';
+import ChallengesIcon from './icons/ExercisesIcon'; // Renamed import
 import AssistantIcon from './icons/AssistantIcon';
 import ProfileIcon from './icons/ProfileIcon';
 import CommunityIcon from './icons/CommunityIcon';
@@ -42,7 +42,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, setActiveScreen }) 
   const navItems: { label: string; screen: Screen; Icon: React.ElementType }[] = [
     { label: 'الرئيسية', screen: 'home', Icon: HomeIcon },
     { label: 'الدروس', screen: 'lessons', Icon: LessonsIcon },
-    { label: 'التمارين', screen: 'exercises', Icon: ExercisesIcon },
+    { label: 'التحديات', screen: 'exercises', Icon: ChallengesIcon },
     { label: 'المساعد', screen: 'assistant', Icon: AssistantIcon },
     { label: 'المجتمع', screen: 'community', Icon: CommunityIcon },
     { label: 'حسابي', screen: 'profile', Icon: ProfileIcon },
