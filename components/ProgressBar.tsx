@@ -9,13 +9,13 @@ interface ProgressBarProps {
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
   value,
-  color = 'bg-green-500',
+  color = 'bg-primary',
   height = 'h-3',
 }) => {
   const clampedValue = Math.max(0, Math.min(100, value));
 
   return (
-    <div className={`w-full bg-slate-200 rounded-full ${height} overflow-hidden`}>
+    <div className={`w-full bg-slate-200 dark:bg-slate-700 rounded-full ${height} overflow-hidden`}>
       <div
         className={`${color} ${height} rounded-full transition-all duration-500 ease-out`}
         style={{ width: `${clampedValue}%` }}

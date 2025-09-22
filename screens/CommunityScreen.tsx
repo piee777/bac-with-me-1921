@@ -286,7 +286,8 @@ const LiveChatView: React.FC = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // FIX: Replaced `NodeJS.Timeout` with `ReturnType<typeof setTimeout>` for browser compatibility.
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const currentUserName = localStorage.getItem('userName');
     const channelRef = useRef<RealtimeChannel | null>(null);

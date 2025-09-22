@@ -41,7 +41,8 @@ const PastExamsScreen: React.FC<PastExamsScreenProps> = ({ setActiveScreen }) =>
         return subjectMatch && yearMatch;
     });
     
-    const availableYears = [...new Set(exams.map(e => e.year))].sort((a,b) => b - a);
+    // FIX: Ensured the sort callback operands are treated as numbers to resolve the arithmetic operation error.
+    const availableYears = [...new Set(exams.map(e => e.year))].sort((a,b) => Number(b) - Number(a));
 
     return (
         <div className="p-6">

@@ -16,7 +16,8 @@ const InputField: React.FC<{
     placeholder: string;
     value: string;
     onChange: (val: string) => void;
-    icon: JSX.Element;
+    // FIX: Replaced `JSX.Element` with `React.ReactElement` to resolve TypeScript error.
+    icon: React.ReactElement;
     isPassword?: boolean;
 }> = ({ id, type = 'text', placeholder, value, onChange, icon, isPassword = false }) => {
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);

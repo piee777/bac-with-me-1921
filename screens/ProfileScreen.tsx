@@ -4,7 +4,7 @@ import { fetchUserProfile } from '../services/api';
 import CircularProgressBar from '../components/CircularProgressBar';
 
 const BadgeCard: React.FC<{badge: Badge}> = ({ badge }) => (
-    <div className="bg-white dark:bg-slate-800/50 p-4 rounded-xl shadow-md flex items-center gap-4">
+    <div className="bg-white dark:bg-slate-800/50 p-4 rounded-xl shadow-md flex items-center gap-4 border border-slate-200 dark:border-slate-700">
         <span className="text-4xl">{badge.icon}</span>
         <div>
             <h4 className="font-bold text-slate-800 dark:text-white">{badge.name}</h4>
@@ -14,7 +14,7 @@ const BadgeCard: React.FC<{badge: Badge}> = ({ badge }) => (
 );
 
 const StatCard: React.FC<{icon: string, value: number | string, label: string, color: string}> = ({ icon, value, label, color }) => (
-    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full">
+    <div className="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full">
         <div className={`text-3xl mb-2 ${color}`}>{icon}</div>
         <div className="text-2xl font-bold text-slate-800 dark:text-white">{value}</div>
         <div className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</div>
@@ -79,18 +79,18 @@ const ProfileScreen: React.FC = () => {
                         </span>
                     )}
                 </div>
-                <p className="text-teal-500 font-semibold bg-teal-50 dark:bg-teal-900/50 dark:text-teal-300 px-3 py-1 rounded-full mt-2">{user.stream}</p>
+                <p className="text-primary font-semibold bg-primary-palest dark:bg-primary-dark/20 dark:text-primary-light px-3 py-1 rounded-full mt-2">{user.stream}</p>
             </div>
 
-            <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
+            <section className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl">
                  <h2 className="text-xl font-bold mb-4 text-center text-slate-800 dark:text-white">إحصائياتي</h2>
                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <StatCard icon="💎" value={user.points} label="نقطة" color="text-amber-500" />
+                    <StatCard icon="💎" value={user.points} label="نقطة" color="text-secondary" />
                     <StatCard icon="🔥" value={user.streak} label="أيام متتالية" color="text-red-500" />
                 </div>
             </section>
 
-             <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
+             <section className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl">
                 <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">تقارير الأداء</h2>
                 <div className="space-y-6">
                     <div>

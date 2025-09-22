@@ -13,8 +13,8 @@ const CircularProgressBar: React.FC<CircularProgressBarProps> = ({
   progress,
   size = 100,
   strokeWidth = 10,
-  color = '#2dd4bf', // teal-400
-  trackColor = '#e2e8f0', // slate-200
+  color = '#14b8a6', // primary
+  trackColor,
   label
 }) => {
   const center = size / 2;
@@ -27,7 +27,7 @@ const CircularProgressBar: React.FC<CircularProgressBarProps> = ({
       <svg className="w-full h-full transform -rotate-90" viewBox={`0 0 ${size} ${size}`}>
         <circle
           className="text-slate-200 dark:text-slate-700"
-          stroke="currentColor"
+          stroke={trackColor || "currentColor"}
           strokeWidth={strokeWidth}
           fill="transparent"
           r={radius}
@@ -48,7 +48,7 @@ const CircularProgressBar: React.FC<CircularProgressBarProps> = ({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-         <span className="text-xl font-extrabold text-slate-800 dark:text-white">
+         <span className="text-2xl font-extrabold text-slate-800 dark:text-white" style={{ fontSize: size / 4.5 }}>
             {Math.round(progress)}%
          </span>
          {label && <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>}

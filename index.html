@@ -19,6 +19,22 @@
     <script>
       tailwind.config = {
         darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                DEFAULT: '#14b8a6', // teal-500
+                light: '#5eead4',   // teal-300
+                dark: '#0f766e',    // teal-700
+                palest: '#f0fdfa', // teal-50
+              },
+              secondary: {
+                DEFAULT: '#f59e0b', // amber-500
+                light: '#fcd34d',   // amber-300
+              }
+            }
+          }
+        }
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -19,7 +19,8 @@ const ChallengesScreen: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     
     const channelRef = useRef<RealtimeChannel | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    // FIX: Replaced `NodeJS.Timeout` with `ReturnType<typeof setInterval>` for browser compatibility.
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const currentUsername = localStorage.getItem('userName');
     
     const cleanup = () => {
