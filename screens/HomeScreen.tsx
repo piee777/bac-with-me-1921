@@ -99,7 +99,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ setActiveScreen, theme, toggleT
             </section>
             
             <section>
-                <h2 className="text-2xl font-bold mb-4 text-slate-800 dark:text-white">أدوات المراجعة الذكية</h2>
+                <h2 className="text-2xl font-bold mb-4 text-slate-800 dark:text-white">الأدوات</h2>
                 <div className="grid grid-cols-2 gap-4">
                    <FeatureCard
                         icon="⚡️"
@@ -122,7 +122,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ setActiveScreen, theme, toggleT
                     <FeatureCard
                         icon="🗓️"
                         title="مولد الخطة"
-                        description="أنشئ جدول مراجعة ذكي."
+                        description="أنشئ جدول مراجعة مخصص."
                         onClick={() => setActiveScreen('study-plan')}
                     />
                      <FeatureCard

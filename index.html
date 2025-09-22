@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
-    <meta name="description" content="تطبيق تعليمي تفاعلي لمساعدة طلاب البكالوريا على التحضير لامتحاناتهم بطريقة ممتعة وجذابة، يضم دروساً، تمارين، ومساعداً ذكياً.">
+    <meta name="description" content="تطبيق تعليمي تفاعلي لمساعدة طلاب البكالوريا على التحضير لامتحاناتهم بطريقة ممتعة وجذابة، يضم دروساً، تمارين، ومساعداً دراسياً يعمل بالذكاء الاصطناعي.">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bac With Me</title>
@@ -51,6 +51,19 @@
       }
       .animate-fade-in {
         animation: fadeIn 0.5s ease-out forwards;
+      }
+      @keyframes slideUpFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-slide-up-fade-in {
+        animation: slideUpFadeIn 0.3s ease-out forwards;
       }
     </style>
   <script type="importmap">

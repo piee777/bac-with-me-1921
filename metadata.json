@@ -1,6 +1,6 @@
 {
   "name": "Bac With Me",
-  "description": "An interactive educational application to help students prepare for their exams in a fun and engaging way, featuring lessons, exercises, and an AI-powered smart assistant.",
+  "description": "An interactive educational application to help students prepare for their exams in a fun and engaging way, featuring lessons, exercises, and an AI-powered study assistant.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -71,7 +71,14 @@ const ProfileScreen: React.FC = () => {
                         🏆
                     </span>
                 </div>
-                <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mt-4">{user.name}</h1>
+                <div className="flex items-center gap-3 mt-4">
+                    <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">{user.name}</h1>
+                    {user.name === 'bensadel' && (
+                        <span className="text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1 rounded-full shadow-lg">
+                            المطور
+                        </span>
+                    )}
+                </div>
                 <p className="text-teal-500 font-semibold bg-teal-50 dark:bg-teal-900/50 dark:text-teal-300 px-3 py-1 rounded-full mt-2">{user.stream}</p>
             </div>
 

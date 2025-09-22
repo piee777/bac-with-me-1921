@@ -44,16 +44,33 @@ const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ setActiveScreen }
             {error && <div className="text-center text-red-500">{error}</div>}
             {!loading && !error && (
                 <div className="space-y-4">
-                    {leaderboard.map((user, index) => (
-                        <div key={user.id} className={`p-4 rounded-xl flex items-center gap-4 shadow ${user.name === currentUserName ? 'bg-teal-100 dark:bg-teal-900/50 border-2 border-teal-500' : 'bg-white dark:bg-slate-800'}`}>
-                            <span className="text-xl font-bold w-8 text-center text-slate-500 dark:text-slate-400">
-                                {index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : user.rank}
-                            </span>
-                            <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
-                            <span className="font-bold flex-1 text-slate-800 dark:text-white">{user.name}</span>
-                            <span className="font-bold text-amber-500">{user.score} نقطة</span>
-                        </div>
-                    ))}
+                    {leaderboard.map((user, index) => {
+                        const isCreator = user.name === 'bensadel';
+                        const isCurrentUser = user.name === currentUserName;
+                        let cardClass = 'bg-white dark:bg-slate-800';
+                        if (isCreator) {
+                            cardClass = 'bg-amber-50 dark:bg-amber-900/40 border-2 border-amber-400';
+                        } else if (isCurrentUser) {
+                            cardClass = 'bg-teal-100 dark:bg-teal-900/50 border-2 border-teal-500';
+                        }
+                        return (
+                            <div key={user.id} className={`p-4 rounded-xl flex items-center gap-4 shadow ${cardClass}`}>
+                                <span className="text-xl font-bold w-8 text-center text-slate-500 dark:text-slate-400">
+                                    {index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : user.rank}
+                                </span>
+                                <img src={user.avatarUrl} alt={user.name} className="w-12 h-12 rounded-full" />
+                                <div className="flex-1 flex items-center gap-2">
+                                    <span className="font-bold text-slate-800 dark:text-white">{user.name}</span>
+                                    {isCreator && (
+                                        <span className="text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 rounded-full shadow-md">
+                                            المطور
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="font-bold text-amber-500">{user.score} نقطة</span>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

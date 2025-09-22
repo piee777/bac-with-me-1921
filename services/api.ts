@@ -98,6 +98,7 @@ const transformChatMessage = (message: any): RealtimeChatMessage => ({
     userName: message.user_name,
     avatarUrl: message.avatar_url ?? avatars[0],
     content: message.content,
+    imageUrl: message.image_url,
 });
 
 const transformChallenge = (challenge: any): Challenge => ({
@@ -270,9 +271,9 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
         const userName = getUserName();
         if (!userName) throw new Error("User not set up.");
         
-        const [statsRes, badgesRes] = await Promise.all([
+        const [statsRes, userBadgesRes] = await Promise.all([
             supabase.from('user_stats').select('*').eq('user_name', userName).single(),
-            supabase.from('user_badges').select('badges(*)').eq('user_name', userName)
+            supabase.from('user_badges').select('badge_id').eq('user_name', userName)
         ]);
 
         let { data: stats, error: statsError } = statsRes;
@@ -281,8 +282,28 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
             throw statsError;
         }
         
-        const { data: badgesData, error: badgesError } = badgesRes;
-        if (badgesError) throw badgesError;
+        const { data: userBadgesData, error: userBadgesError } = userBadgesRes;
+        if (userBadgesError) throw userBadgesError;
+        
+        let badges = [];
+        if (userBadgesData && userBadgesData.length > 0) {
+            const badgeIds = userBadgesData.map(ub => ub.badge_id);
+            const { data: badgesData, error: badgesError } = await supabase
+                .from('badges')
+                .select('*')
+                .in('id', badgeIds);
+            
+            if (badgesError) throw badgesError;
+
+            if (badgesData) {
+                badges = badgesData.map((b: any) => ({
+                    id: b.id,
+                    name: b.name,
+                    icon: b.icon ?? '🏆',
+                    description: b.description,
+                }));
+            }
+        }
 
         const today = new Date();
         const lastActive = stats?.last_active_date ? new Date(stats.last_active_date) : null;
@@ -315,12 +336,7 @@ export const fetchUserProfile = async (): Promise<UserProfile> => {
             stream,
             points: stats?.points || 0,
             streak: currentStreak,
-            badges: badgesData?.map((b: any) => ({
-                id: b.badges.id,
-                name: b.badges.name,
-                icon: b.badges.icon ?? '🏆',
-                description: b.badges.description,
-            })) || []
+            badges: badges,
         };
     } catch (e) {
         console.error('Failed to fetch real user profile:', e);
@@ -333,8 +349,9 @@ export const fetchSubjects = async (): Promise<Subject[]> => {
     try {
         const userName = localStorage.getItem('userName');
         
-        const [subjectsRes, progressRes] = await Promise.all([
-            supabase.from('subjects').select('*, lessons(*)'),
+        const [subjectsRes, lessonsRes, progressRes] = await Promise.all([
+            supabase.from('subjects').select('*'),
+            supabase.from('lessons').select('*'),
             userName 
                 ? supabase.from('user_lesson_progress').select('lesson_id').eq('user_name', userName)
                 : Promise.resolve({ data: null, error: null })
@@ -342,12 +359,32 @@ export const fetchSubjects = async (): Promise<Subject[]> => {
 
         const { data: subjectsData, error: subjectsError } = subjectsRes;
         if (subjectsError) throw subjectsError;
+        
+        const { data: lessonsData, error: lessonsError } = lessonsRes;
+        if (lessonsError) throw lessonsError;
+
         if (!subjectsData || subjectsData.length === 0) return mockSubjects;
+
+        // Group lessons by subject ID for efficient mapping
+        const lessonsBySubjectId = (lessonsData || []).reduce((acc, lesson) => {
+            const subjectId = lesson.subject_id;
+            if (subjectId) {
+                if (!acc[subjectId]) acc[subjectId] = [];
+                acc[subjectId].push(lesson);
+            }
+            return acc;
+        }, {} as Record<string, any[]>);
+
+        // Attach lessons to their respective subjects
+        const subjectsWithLessons = (subjectsData || []).map(subject => ({
+            ...subject,
+            lessons: lessonsBySubjectId[subject.id] || []
+        }));
 
         const { data: progressData } = progressRes;
         const completedLessonIds = new Set<string>(progressData?.map(p => p.lesson_id) || []);
 
-        const subjectsWithProgress = subjectsData.map(subject => ({
+        const subjectsWithProgress = subjectsWithLessons.map(subject => ({
             ...subject,
             lessons: subject.lessons?.map((lesson: any) => ({
                 ...lesson,
@@ -676,15 +713,37 @@ export const fetchChatMessages = async (): Promise<RealtimeChatMessage[]> => {
     }
 };
 
-export const sendChatMessage = async (content: string): Promise<RealtimeChatMessage> => {
+export const sendChatMessage = async (content: string, imageFile: File | null): Promise<RealtimeChatMessage> => {
     const userName = getUserName() || 'مجهول';
     const avatarUrl = localStorage.getItem('userAvatarUrl') || avatars[0];
 
     if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
 
+    let imageUrl: string | null = null;
+    if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${userName}-${Date.now()}.${fileExt}`;
+        const filePath = `public/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage.from('chat-images').upload(filePath, imageFile);
+
+        if (uploadError) {
+            console.error('Error uploading chat image:', uploadError);
+            throw new Error('Failed to upload image.');
+        }
+
+        const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(filePath);
+        imageUrl = publicUrl;
+    }
+
     const { data, error }: PostgrestSingleResponse<any> = await supabase
         .from('chat_messages')
-        .insert({ content, user_name: userName, avatar_url: avatarUrl })
+        .insert({ 
+            content: content, 
+            user_name: userName, 
+            avatar_url: avatarUrl,
+            image_url: imageUrl
+        })
         .select('*')
         .single();
     
@@ -703,8 +762,7 @@ export const subscribeToChatMessages = (onNewMessage: (message: RealtimeChatMess
         (payload) => {
           onNewMessage(transformChatMessage(payload.new));
         }
-      )
-      .subscribe();
+      );
       
     return channel;
 };

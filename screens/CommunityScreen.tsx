@@ -3,6 +3,56 @@ import { fetchCommunityPosts, addCommunityPost, addCommunityAnswer, fetchSubject
 import { CommunityPost, Subject, RealtimeChatMessage } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+// Helper function to resize and compress the image
+const processImage = (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return reject(new Error('Could not get canvas context'));
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => {
+            if (blob) {
+                resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+            } else {
+                reject(new Error('Canvas to Blob conversion failed'));
+            }
+        }, 'image/jpeg', 0.8);
+      };
+      img.onerror = reject;
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+
 const PostDetailView: React.FC<{
     post: CommunityPost;
     onBack: () => void;
@@ -32,7 +82,10 @@ const PostDetailView: React.FC<{
                     <img src={post.avatarUrl} alt={post.author} className="w-12 h-12 rounded-full flex-shrink-0" />
                     <div className="flex-1">
                         <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-slate-800 dark:text-white">{post.author}</h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-slate-800 dark:text-white">{post.author}</h3>
+                                {post.author === 'bensadel' && <span className="text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 rounded-full shadow-sm">المطور</span>}
+                            </div>
                             <span className="text-xs text-slate-400">{post.timestamp}</span>
                         </div>
                         <span className="text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full inline-block mt-1">{post.subject}</span>
@@ -50,7 +103,10 @@ const PostDetailView: React.FC<{
                             <img src={answer.avatarUrl} alt={answer.author} className="w-10 h-10 rounded-full flex-shrink-0" />
                             <div className="flex-1">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="font-bold text-sm text-slate-800 dark:text-white">{answer.author}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-sm text-slate-800 dark:text-white">{answer.author}</h4>
+                                        {answer.author === 'bensadel' && <span className="text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 rounded-full shadow-sm">المطور</span>}
+                                    </div>
                                     <span className="text-xs text-slate-400">{answer.timestamp}</span>
                                 </div>
                                 <p className="mt-1 text-slate-600 dark:text-slate-300">{answer.text}</p>
@@ -180,7 +236,10 @@ const ForumView: React.FC<{
                             <img src={post.avatarUrl} alt={post.author} className="w-12 h-12 rounded-full flex-shrink-0" />
                             <div className="flex-1">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="font-bold text-slate-800 dark:text-white">{post.author}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-slate-800 dark:text-white">{post.author}</h3>
+                                        {post.author === 'bensadel' && <span className="text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-2 py-0.5 rounded-full shadow-sm">المطور</span>}
+                                    </div>
                                     <span className="text-xs text-slate-400">{post.timestamp}</span>
                                 </div>
                                 <span className="text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full inline-block mt-1">{post.subject}</span>
@@ -216,10 +275,21 @@ const ForumView: React.FC<{
 const LiveChatView: React.FC = () => {
     const [messages, setMessages] = useState<RealtimeChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+    const [typingUsers, setTypingUsers] = useState<{ userName: string; avatarUrl: string }[]>([]);
+    const [showNewMessagesIndicator, setShowNewMessagesIndicator] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const currentUserName = localStorage.getItem('userName');
+    const channelRef = useRef<RealtimeChannel | null>(null);
 
     useEffect(() => {
         const loadMessages = async () => {
@@ -243,27 +313,109 @@ const LiveChatView: React.FC = () => {
                 return [...prevMessages, newMessage];
             });
         });
+        channelRef.current = channel;
+
+        channel.on('presence', { event: 'sync' }, () => {
+            const presenceState = channel.presenceState();
+            const currentOnline = new Set<string>();
+            const currentTyping: { userName: string; avatarUrl: string }[] = [];
+            
+            for (const key in presenceState) {
+                const presences = presenceState[key] as any[];
+                const user = presences[0];
+                if (user?.user_name) {
+                    currentOnline.add(user.user_name);
+                    if (user.is_typing && user.user_name !== currentUserName) {
+                        currentTyping.push({ userName: user.user_name, avatarUrl: user.avatar_url });
+                    }
+                }
+            }
+            setOnlineUsers(currentOnline);
+            setTypingUsers(currentTyping);
+        });
+
+        channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await channel.track({ 
+                    user_name: currentUserName, 
+                    avatar_url: localStorage.getItem('userAvatarUrl'),
+                    is_typing: false 
+                });
+            }
+        });
 
         return () => {
             channel.unsubscribe();
+            channelRef.current = null;
         };
-    }, []);
+    }, [currentUserName]);
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (!chatContainerRef.current) return;
+        
+        const isNearBottom = chatContainerRef.current.scrollTop < 150;
+        const latestMessage = messages[messages.length - 1];
+        
+        if (isNearBottom || (latestMessage && latestMessage.userName === currentUserName)) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            setShowNewMessagesIndicator(false);
+        } else if (messages.length > 0) {
+            setShowNewMessagesIndicator(true);
+        }
+    }, [messages, currentUserName]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const content = newMessage.trim();
-        if (!content) return;
+        if (!content && !imageFile) return;
 
+        const currentImageFile = imageFile;
         setNewMessage('');
+        setImageFile(null);
+        setImagePreview(null);
+
         try {
-            await sendChatMessage(content);
+            await sendChatMessage(content, currentImageFile);
         } catch (err) {
             alert('فشل إرسال الرسالة.');
-            setNewMessage(content); // Restore message on failure
+            setNewMessage(content);
+            setImageFile(currentImageFile);
+        }
+    };
+
+    const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setNewMessage(e.target.value);
+        if (channelRef.current) {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            channelRef.current.track({ is_typing: true });
+            typingTimeoutRef.current = setTimeout(() => {
+                channelRef.current?.track({ is_typing: false });
+            }, 2000);
+        }
+    };
+    
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const compressedFile = await processImage(file);
+                setImageFile(compressedFile);
+                setImagePreview(URL.createObjectURL(compressedFile));
+            } catch (err) {
+                alert('فشل معالجة الصورة.');
+            }
+        }
+    };
+    
+    const handleScroll = () => {
+        if (chatContainerRef.current) {
+            const { scrollTop } = chatContainerRef.current;
+            if (scrollTop > 150 && showNewMessagesIndicator) {
+                 // User scrolled up, so we do nothing to the indicator
+            } else if (scrollTop < 150 && showNewMessagesIndicator) {
+                // User scrolled back down, hide the indicator
+                setShowNewMessagesIndicator(false);
+            }
         }
     };
     
@@ -271,40 +423,109 @@ const LiveChatView: React.FC = () => {
     if (error) return <div className="h-full flex justify-center items-center text-red-500">{error}</div>;
 
     return (
-        <div className="h-full flex flex-col">
-            <header className="mb-4">
-                <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">الدردشة الحية</h1>
-                <p className="text-slate-500 dark:text-slate-400">تواصل مع زملائك في الوقت الفعلي.</p>
+        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950">
+            <header className="p-4 border-b border-slate-200 dark:border-slate-800 text-center flex-shrink-0">
+                <h1 className="text-xl font-bold text-slate-800 dark:text-white">الشات</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{onlineUsers.size} أعضاء متصلون</p>
             </header>
-            <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-inner">
-                {messages.map(msg => (
-                    <div key={msg.id} className={`flex items-end gap-3 ${msg.userName === currentUserName ? 'justify-end' : 'justify-start'}`}>
-                        {msg.userName !== currentUserName && <img src={msg.avatarUrl} alt={msg.userName} className="w-8 h-8 rounded-full" />}
-                        <div className={`max-w-xs md:max-w-md p-3 rounded-2xl ${msg.userName === currentUserName ? 'bg-teal-500 text-white rounded-br-none' : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none'}`}>
-                            {msg.userName !== currentUserName && <p className="font-bold text-sm text-teal-600 dark:text-teal-400 mb-1">{msg.userName}</p>}
-                            <p className="whitespace-pre-wrap">{msg.content}</p>
-                        </div>
-                         {msg.userName === currentUserName && <img src={msg.avatarUrl} alt={msg.userName} className="w-8 h-8 rounded-full" />}
-                    </div>
-                ))}
-                <div ref={messagesEndRef} />
-            </div>
-            <form onSubmit={handleSendMessage} className="mt-4 flex items-center gap-2 p-2 bg-white dark:bg-slate-800 rounded-full shadow-lg">
-                 <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="اكتب رسالتك هنا..."
-                    className="flex-1 bg-transparent p-3 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
-                />
-                 <button
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="bg-teal-500 text-white rounded-full p-3 hover:bg-teal-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 transition-colors"
+
+            <div className="flex-1 relative overflow-hidden">
+                <div 
+                    ref={chatContainerRef}
+                    onScroll={handleScroll}
+                    className="absolute inset-0 p-4 flex flex-col-reverse gap-0.5 overflow-y-auto"
                 >
-                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 transform -scale-x-100"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
-                </button>
-            </form>
+                    <div ref={messagesEndRef} className="h-0.5" />
+                    
+                    {typingUsers.length > 0 && (
+                        <div className="flex items-end gap-2.5 mb-2 animate-fade-in self-start">
+                             <img src={typingUsers[0].avatarUrl} alt={typingUsers[0].userName} className="w-7 h-7 rounded-full" />
+                            <div className="p-3 rounded-2xl bg-slate-200 dark:bg-slate-700">
+                                <div className="flex items-center space-x-2 space-x-reverse">
+                                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse"></div>
+                                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse delay-150"></div>
+                                    <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse delay-300"></div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {[...messages].reverse().map((msg, index) => {
+                        const reversedMessages = [...messages].reverse();
+                        const prevTemporalMsg = reversedMessages[index - 1]; 
+                        const nextTemporalMsg = reversedMessages[index + 1]; 
+                        
+                        const isCurrentUserMsg = msg.userName === currentUserName;
+                        const isFirstOfUserBlock = !prevTemporalMsg || prevTemporalMsg.userName !== msg.userName;
+                        
+                        return (
+                            <div key={msg.id} className={`flex w-full items-end gap-2.5 animate-slide-up-fade-in ${isFirstOfUserBlock ? 'mt-4' : 'mt-1'} ${isCurrentUserMsg ? 'justify-end' : 'justify-start'}`}>
+                                 {!isCurrentUserMsg && (
+                                    <div className="w-7 h-7 flex-shrink-0 self-end">
+                                        {isFirstOfUserBlock && <img src={msg.avatarUrl} alt={msg.userName} className="w-full h-full rounded-full" />}
+                                    </div>
+                                )}
+                                <div className={`max-w-[70%] md:max-w-[60%] w-fit`}>
+                                     {isFirstOfUserBlock && !isCurrentUserMsg && (
+                                        <div className="flex items-center gap-2 mb-1 px-1">
+                                            <p className="font-bold text-sm text-slate-600 dark:text-slate-300">{msg.userName}</p>
+                                            {msg.userName === 'bensadel' && <span className="text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-1.5 py-0.5 rounded-full shadow-sm">المطور</span>}
+                                        </div>
+                                     )}
+                                    {msg.imageUrl ? (
+                                        <img src={msg.imageUrl} alt="Chat attachment" className={`rounded-2xl w-full h-auto object-cover`} />
+                                    ) : (
+                                        <div className={`px-4 py-2.5 whitespace-pre-wrap break-words rounded-2xl ${isCurrentUserMsg ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50'}`}>
+                                            {msg.content}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                 {showNewMessagesIndicator && (
+                    <button
+                        onClick={() => {
+                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="absolute bottom-4 right-1/2 translate-x-1/2 bg-blue-500/90 backdrop-blur-sm text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg animate-fade-in"
+                    >
+                        👇 رسائل جديدة
+                    </button>
+                )}
+            </div>
+
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+                 {imagePreview && (
+                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-between mb-2 animate-fade-in">
+                        <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded" />
+                        <button onClick={() => { setImageFile(null); setImagePreview(null); }} className="text-red-500 p-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                )}
+                <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1.5 bg-slate-200 dark:bg-slate-800 rounded-3xl">
+                    <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M15.5 5.75a.75.75 0 00-1.5 0v3h-3a.75.75 0 000 1.5h3v3a.75.75 0 001.5 0v-3h3a.75.75 0 000-1.5h-3v-3z" /><path fillRule="evenodd" d="M2 5a3 3 0 013-3h10a3 3 0 013 3v10a3 3 0 01-3 3H5a3 3 0 01-3-3V5zm3-1.5A1.5 1.5 0 003.5 5v10A1.5 1.5 0 005 16.5h10A1.5 1.5 0 0016.5 15V5A1.5 1.5 0 0015 3.5H5z" clipRule="evenodd" /></svg>
+                    </button>
+                    <input
+                        type="text"
+                        value={newMessage}
+                        onChange={handleTyping}
+                        placeholder="رسالة..."
+                        className="flex-1 bg-transparent px-2 text-slate-800 dark:text-slate-200 placeholder-slate-500 focus:outline-none"
+                    />
+                    <button 
+                        type="submit" 
+                        disabled={!newMessage.trim() && !imageFile}
+                        className={`font-semibold text-blue-500 px-3 transition-all duration-200 ${(!newMessage.trim() && !imageFile) ? 'w-0 opacity-0 -mr-2' : 'w-auto opacity-100 mr-0'}`}
+                    >
+                        إرسال
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };
@@ -384,11 +605,11 @@ const CommunityScreen: React.FC = () => {
                     onClick={() => setView('chat')} 
                     className={`px-6 py-2 rounded-full font-bold w-1/2 ${view === 'chat' ? 'bg-white dark:bg-slate-700 shadow text-teal-600 dark:text-teal-400' : 'text-slate-500'}`}
                 >
-                    الدردشة الحية
+                    الشات
                 </button>
             </div>
             
-            <div className="flex-1">
+            <div className="flex-1 overflow-hidden">
                 {view === 'forum' ? (
                     loading ? <div className="h-full flex justify-center items-center">جاري تحميل المنتدى...</div> :
                     error ? <div className="h-full flex justify-center items-center text-red-500">{error}</div> :

@@ -117,7 +117,7 @@ const AssistantScreen: React.FC = () => {
     return (
         <div className="h-screen flex flex-col bg-slate-100 dark:bg-slate-950">
              <header className="p-4 text-center border-b border-slate-200 dark:border-slate-800">
-                <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">المساعد الذكي</h1>
+                <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">المساعد الدراسي</h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400">مساعدك الشخصي</p>
              </header>
 

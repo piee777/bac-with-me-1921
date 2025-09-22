@@ -113,6 +113,7 @@ export interface RealtimeChatMessage {
     userName: string;
     avatarUrl: string;
     content: string;
+    imageUrl?: string;
 }
 
 export interface Challenge {
@@ -226,6 +227,7 @@ export interface Database {
           user_name: string
           avatar_url: string | null
           content: string
+          image_url?: string | null
         }
         Insert: {
           id?: number
@@ -233,6 +235,7 @@ export interface Database {
           user_name: string
           avatar_url?: string | null
           content: string
+          image_url?: string | null
         }
         Update: {
           id?: number
@@ -240,6 +243,7 @@ export interface Database {
           user_name?: string
           avatar_url?: string | null
           content?: string
+          image_url?: string | null
         }
         Relationships: []
       }
