@@ -44,8 +44,8 @@ const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
     };
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mt-4">
-            <p className="font-bold mb-4">{question.question}</p>
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mt-4 border border-slate-200 dark:border-slate-700">
+            <p className="font-bold mb-4 text-slate-800 dark:text-white">{question.question}</p>
             <div className="space-y-2">
                 {question.options.map(opt => (
                     <button key={opt.text} onClick={() => handleAnswer(opt)} className={`w-full text-right p-3 rounded-lg border-2 transition-colors ${getButtonClass(opt)}`}>
@@ -67,11 +67,13 @@ const Quiz: React.FC<{ quiz: QuizQuestion[] }> = ({ quiz }) => {
 
 const LessonDetailView: React.FC<{ lesson: Lesson; onBack: () => void; color: string; onCompleteLesson: (lessonId: string, subjectId: string) => void; }> = ({ lesson, onBack, color, onCompleteLesson }) => {
     const colorClasses = subjectColors[color] || subjectColors.default;
+    const [feedback, setFeedback] = useState<'liked'|'disliked'|null>(null);
 
     const handleListen = () => {
         if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(`${lesson.title}. ${lesson.content}`);
+            const utterance = new SpeechSynthesisUtterance(`${lesson.title}. ${lesson.summary}. ${lesson.content}`);
             utterance.lang = 'ar-SA';
+            utterance.rate = 0.9;
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
         } else {
@@ -80,37 +82,53 @@ const LessonDetailView: React.FC<{ lesson: Lesson; onBack: () => void; color: st
     };
     
     return (
-    <div>
+    <div className="animate-fade-in">
         <BackButton onClick={onBack} text="العودة للدروس" />
         {lesson.imageUrl && <img src={lesson.imageUrl} alt={lesson.title} className="w-full h-48 object-cover rounded-2xl mb-4" />}
         <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white mb-2">{lesson.title}</h1>
         <p className="text-slate-500 dark:text-slate-400 mb-6 text-lg">{lesson.summary}</p>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg space-y-6">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg space-y-8">
             <div>
-                <h2 className={`text-2xl font-bold border-b-2 ${colorClasses.border} pb-2 mb-3`}>شرح الدرس</h2>
+                <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>شرح الدرس</h2>
                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line text-lg">{lesson.content || "محتوى الدرس سيتم إضافته قريباً."}</p>
             </div>
              {lesson.examples && lesson.examples.length > 0 && <div>
-                <h2 className={`text-2xl font-bold border-b-2 ${colorClasses.border} pb-2 mb-3`}>أمثلة</h2>
-                <ul className="list-disc list-inside space-y-2 text-slate-700 dark:text-slate-300 ps-4 text-lg">
-                    {lesson.examples.map((ex, i) => <li key={i}>{ex}</li>)}
+                <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>أمثلة</h2>
+                <ul className="space-y-3 text-slate-700 dark:text-slate-300 ps-4 text-lg">
+                    {lesson.examples.map((ex, i) => <li key={i} className="flex items-start gap-3"><span className="text-primary mt-1.5">◆</span><span>{ex}</span></li>)}
                 </ul>
             </div>}
             <div>
-                <h2 className={`text-2xl font-bold border-b-2 ${colorClasses.border} pb-2 mb-3`}>موارد إضافية</h2>
+                <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>موارد إضافية</h2>
                 <div className="flex flex-wrap gap-4">
                      <a href={lesson.pdfUrl || '#'} download target="_blank" rel="noopener noreferrer" className="bg-red-100 text-red-700 font-bold py-2 px-4 rounded-lg hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900/70">ملخص PDF 📄</a>
                      <button onClick={handleListen} className="bg-blue-100 text-blue-700 font-bold py-2 px-4 rounded-lg hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/70">استمع للشرح 🎧</button>
-                     <button onClick={() => alert("سيتم تلخيص الدرس باستخدام الذكاء الاصطناعي قريباً!")} className="bg-amber-100 text-amber-700 font-bold py-2 px-4 rounded-lg hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/70">ملخص سريع ⚡️</button>
+                </div>
+            </div>
+             <div>
+                <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>ملخص سريع ⚡️</h2>
+                 <div className="space-y-3">
+                    <p className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg border-l-4 border-amber-400 text-amber-800 dark:text-amber-200">{lesson.summary}</p>
                 </div>
             </div>
             {lesson.quiz && lesson.quiz.length > 0 && (
                  <div>
-                    <h2 className={`text-2xl font-bold border-b-2 ${colorClasses.border} pb-2 mb-3`}>اختبر فهمك</h2>
+                    <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>اختبر فهمك</h2>
                     <Quiz quiz={lesson.quiz} />
                 </div>
             )}
+             <div>
+                <h2 className={`text-2xl font-bold border-r-4 ${colorClasses.border} pr-3 mb-4`}>هل كان الدرس مفيداً؟</h2>
+                {feedback ? (
+                    <p className="text-center font-bold text-green-600 dark:text-green-400">شكراً لتقييمك!</p>
+                ) : (
+                    <div className="flex justify-center gap-4">
+                        <button onClick={() => setFeedback('liked')} className="text-4xl transform hover:scale-125 transition-transform">👍</button>
+                        <button onClick={() => setFeedback('disliked')} className="text-4xl transform hover:scale-125 transition-transform">👎</button>
+                    </div>
+                )}
+            </div>
         </div>
          <div className="mt-8">
             <button
@@ -137,46 +155,36 @@ const BackButton: React.FC<{onClick: () => void, text: string}> = ({ onClick, te
     </button>
 );
 
-type LessonStatus = 'locked' | 'unlocked' | 'completed';
-const LessonNode: React.FC<{ lesson: Lesson; status: LessonStatus; onClick: () => void; color: string; }> = ({ lesson, status, onClick, color }) => {
-    const colorClass = subjectColors[color]?.bg || subjectColors.default.bg;
-    const ringColor = subjectColors[color]?.border.replace('border-', 'ring-') || 'ring-slate-400';
-
-    // FIX: Replaced `JSX.Element` with `React.ReactElement` to resolve TypeScript error.
-    const statusStyles: { [key in LessonStatus]: { node: string; icon: React.ReactElement; label?: React.ReactElement } } = {
-        locked: {
-            node: 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed',
-            icon: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-8 h-8 text-slate-500 dark:text-slate-500"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" /></svg>
-        },
-        unlocked: {
-            node: `${colorClass} text-white animate-pulse shadow-lg ${ringColor} ring-4 ring-offset-2 dark:ring-offset-slate-900`,
-            icon: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10"><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" /></svg>,
-            label: <span className={`absolute -bottom-7 text-sm font-bold p-1 px-3 rounded-lg ${colorClass} text-white`}>ابدأ</span>
-        },
-        completed: {
-            node: 'bg-green-500 text-white',
-            icon: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10"><path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" /></svg>
-        },
-    };
+const LessonCard: React.FC<{ lesson: Lesson; subject: Subject; onClick: () => void }> = ({ lesson, subject, onClick }) => {
+    const progress = lesson.completed ? 100 : 0;
+    const isLocked = false; // Simplified for the new design, can be re-added if needed.
+    const colorClasses = subjectColors[subject.color] || subjectColors.default;
 
     return (
-        <div className="relative flex items-center justify-center w-full my-4">
-             <button onClick={onClick} disabled={status === 'locked'} className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-transform duration-200 transform hover:scale-110 ${statusStyles[status].node}`}>
-                 {statusStyles[status].icon}
-             </button>
-             <div className="absolute text-center w-40 -translate-y-1/2 top-1/2" style={{ [lesson.id.slice(-1) % 2 === 0 ? 'right' : 'left']: 'calc(50% + 4rem)' }}>
-                 <p className="font-bold text-slate-800 dark:text-white">{lesson.title}</p>
-             </div>
-             {statusStyles[status].label}
-        </div>
+         <button 
+            onClick={onClick}
+            disabled={isLocked}
+            className={`w-full text-right bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 flex items-center gap-4 transition-transform duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+            <div className={`w-14 h-14 rounded-lg flex-shrink-0 flex items-center justify-center text-3xl ${colorClasses.bg} text-white`}>
+                {subject.icon}
+            </div>
+            <div className="flex-1">
+                <h3 className="font-bold text-slate-800 dark:text-white text-md">{lesson.title}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{lesson.summary.substring(0, 40)}...</p>
+            </div>
+            <div className="flex-shrink-0">
+                {isLocked 
+                    ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-8 h-8 text-slate-400 dark:text-slate-500"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" /></svg>
+                    : <CircularProgressBar progress={progress} size={40} strokeWidth={5} color={lesson.completed ? '#22c55e' : '#f59e0b'} />
+                }
+            </div>
+        </button>
     );
 };
 
 
 const SubjectDetailView: React.FC<{ subject: Subject; onBack: () => void; onSelectLesson: (lesson: Lesson) => void; }> = ({ subject, onBack, onSelectLesson }) => {
-    
-    const firstIncompleteIndex = subject.lessons.findIndex(l => !l.completed);
-
     return (
         <div className="animate-fade-in">
             <BackButton onClick={onBack} text="العودة للمواد" />
@@ -188,19 +196,15 @@ const SubjectDetailView: React.FC<{ subject: Subject; onBack: () => void; onSele
                 </div>
             </div>
             
-            <div className="relative">
-                <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-slate-300 dark:bg-slate-700 -translate-x-1/2"></div>
-                {subject.lessons.map((lesson, index) => {
-                    let status: LessonStatus = 'locked';
-                    if (index < firstIncompleteIndex || (firstIncompleteIndex === -1 && subject.lessons.length > 0)) {
-                        status = 'completed';
-                    } else if (index === firstIncompleteIndex) {
-                        status = 'unlocked';
-                    }
-                    return (
-                        <LessonNode key={lesson.id} lesson={lesson} status={status} onClick={() => onSelectLesson(lesson)} color={subject.color} />
-                    )
-                })}
+            <div className="space-y-4">
+                {subject.lessons.map((lesson) => (
+                    <LessonCard 
+                        key={lesson.id} 
+                        lesson={lesson}
+                        subject={subject}
+                        onClick={() => onSelectLesson(lesson)}
+                    />
+                ))}
             </div>
         </div>
     );

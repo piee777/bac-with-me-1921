@@ -98,7 +98,6 @@ const transformChatMessage = (message: any): RealtimeChatMessage => ({
     userName: message.user_name,
     avatarUrl: message.avatar_url ?? avatars[0],
     content: message.content,
-    imageUrl: message.image_url,
 });
 
 const transformChallenge = (challenge: any): Challenge => ({
@@ -713,36 +712,18 @@ export const fetchChatMessages = async (): Promise<RealtimeChatMessage[]> => {
     }
 };
 
-export const sendChatMessage = async (content: string, imageFile: File | null): Promise<RealtimeChatMessage> => {
+export const sendChatMessage = async (content: string): Promise<RealtimeChatMessage> => {
     const userName = getUserName() || 'مجهول';
     const avatarUrl = localStorage.getItem('userAvatarUrl') || avatars[0];
 
     if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
-
-    let imageUrl: string | null = null;
-    if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${userName}-${Date.now()}.${fileExt}`;
-        const filePath = `public/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage.from('chat-images').upload(filePath, imageFile);
-
-        if (uploadError) {
-            console.error('Error uploading chat image:', uploadError);
-            throw new Error('Failed to upload image.');
-        }
-
-        const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(filePath);
-        imageUrl = publicUrl;
-    }
 
     const { data, error }: PostgrestSingleResponse<any> = await supabase
         .from('chat_messages')
         .insert({ 
             content: content, 
             user_name: userName, 
-            avatar_url: avatarUrl,
-            image_url: imageUrl
+            avatar_url: avatarUrl
         })
         .select('*')
         .single();

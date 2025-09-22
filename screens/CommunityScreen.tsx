@@ -3,56 +3,6 @@ import { fetchCommunityPosts, addCommunityPost, addCommunityAnswer, fetchSubject
 import { CommunityPost, Subject, RealtimeChatMessage } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
-// Helper function to resize and compress the image
-const processImage = (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          return reject(new Error('Could not get canvas context'));
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob((blob) => {
-            if (blob) {
-                resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
-            } else {
-                reject(new Error('Canvas to Blob conversion failed'));
-            }
-        }, 'image/jpeg', 0.8);
-      };
-      img.onerror = reject;
-      img.src = event.target?.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-
 const PostDetailView: React.FC<{
     post: CommunityPost;
     onBack: () => void;
@@ -275,8 +225,6 @@ const ForumView: React.FC<{
 const LiveChatView: React.FC = () => {
     const [messages, setMessages] = useState<RealtimeChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [imageFile, setImageFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -285,7 +233,6 @@ const LiveChatView: React.FC = () => {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     // FIX: Replaced `NodeJS.Timeout` with `ReturnType<typeof setTimeout>` for browser compatibility.
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -368,19 +315,15 @@ const LiveChatView: React.FC = () => {
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const content = newMessage.trim();
-        if (!content && !imageFile) return;
+        if (!content) return;
 
-        const currentImageFile = imageFile;
         setNewMessage('');
-        setImageFile(null);
-        setImagePreview(null);
 
         try {
-            await sendChatMessage(content, currentImageFile);
+            await sendChatMessage(content);
         } catch (err) {
             alert('فشل إرسال الرسالة.');
             setNewMessage(content);
-            setImageFile(currentImageFile);
         }
     };
 
@@ -392,19 +335,6 @@ const LiveChatView: React.FC = () => {
             typingTimeoutRef.current = setTimeout(() => {
                 channelRef.current?.track({ is_typing: false });
             }, 2000);
-        }
-    };
-    
-    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            try {
-                const compressedFile = await processImage(file);
-                setImageFile(compressedFile);
-                setImagePreview(URL.createObjectURL(compressedFile));
-            } catch (err) {
-                alert('فشل معالجة الصورة.');
-            }
         }
     };
     
@@ -473,13 +403,9 @@ const LiveChatView: React.FC = () => {
                                             {msg.userName === 'bensadel' && <span className="text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-1.5 py-0.5 rounded-full shadow-sm">المطور</span>}
                                         </div>
                                      )}
-                                    {msg.imageUrl ? (
-                                        <img src={msg.imageUrl} alt="Chat attachment" className={`rounded-2xl w-full h-auto object-cover`} />
-                                    ) : (
-                                        <div className={`px-4 py-2.5 whitespace-pre-wrap break-words rounded-2xl ${isCurrentUserMsg ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50'}`}>
-                                            {msg.content}
-                                        </div>
-                                    )}
+                                    <div className={`px-4 py-2.5 whitespace-pre-wrap break-words rounded-2xl ${isCurrentUserMsg ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50'}`}>
+                                        {msg.content}
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -498,19 +424,7 @@ const LiveChatView: React.FC = () => {
             </div>
 
             <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
-                 {imagePreview && (
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-between mb-2 animate-fade-in">
-                        <img src={imagePreview} alt="Preview" className="w-12 h-12 object-cover rounded" />
-                        <button onClick={() => { setImageFile(null); setImagePreview(null); }} className="text-red-500 p-2">
-                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                )}
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1.5 bg-slate-200 dark:bg-slate-800 rounded-3xl">
-                    <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M15.5 5.75a.75.75 0 00-1.5 0v3h-3a.75.75 0 000 1.5h3v3a.75.75 0 001.5 0v-3h3a.75.75 0 000-1.5h-3v-3z" /><path fillRule="evenodd" d="M2 5a3 3 0 013-3h10a3 3 0 013 3v10a3 3 0 01-3 3H5a3 3 0 01-3-3V5zm3-1.5A1.5 1.5 0 003.5 5v10A1.5 1.5 0 005 16.5h10A1.5 1.5 0 0016.5 15V5A1.5 1.5 0 0015 3.5H5z" clipRule="evenodd" /></svg>
-                    </button>
                     <input
                         type="text"
                         value={newMessage}
@@ -520,8 +434,8 @@ const LiveChatView: React.FC = () => {
                     />
                     <button 
                         type="submit" 
-                        disabled={!newMessage.trim() && !imageFile}
-                        className={`font-semibold text-blue-500 px-3 transition-all duration-200 ${(!newMessage.trim() && !imageFile) ? 'w-0 opacity-0 -mr-2' : 'w-auto opacity-100 mr-0'}`}
+                        disabled={!newMessage.trim()}
+                        className={`font-semibold text-blue-500 px-3 transition-all duration-200 ${!newMessage.trim() ? 'w-0 opacity-0 -mr-2' : 'w-auto opacity-100 mr-0'}`}
                     >
                         إرسال
                     </button>
